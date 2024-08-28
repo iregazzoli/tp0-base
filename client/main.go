@@ -5,6 +5,8 @@ import (
 	"os"
 	"strings"
 	"time"
+	"os/signal"
+	"syscall"
 
 	"github.com/op/go-logging"
 	"github.com/pkg/errors"
@@ -110,6 +112,22 @@ func main() {
 		LoopPeriod:    v.GetDuration("loop.period"),
 	}
 
-	client := common.NewClient(clientConfig)
+	
+	//Setup signal handling
+	//Channel for receiving signals
+	sigChan := make(chan os.Signal, 1)
+	//channel for comunicating with the client 
+	stopChan := make(chan struct{})
+	
+	signal.Notify(sigChan, syscall.SIGTERM, syscall.SIGINT)
+	
+	// Seems like this is a coomon way in go for handling asynchronous tasks like listening for signals in a non-blocking way
+	go func() {
+		sig := <-sigChan
+		log.Infof("Signal %v received, shutting down client...", sig)
+		close(stopChan) // Close channel to notify client
+		}()
+		
+	client := common.NewClient(clientConfig, stopChan)
 	client.StartClientLoop()
 }
