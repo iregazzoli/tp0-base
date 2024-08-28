@@ -9,9 +9,11 @@ class Server:
         self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._server_socket.bind(('', port))
         self._server_socket.listen(listen_backlog)
+        self._server_socket.settimeout(5)
         self.running = True 
 
-        signal.signal(signal.SIGTERM, self.handle_sigterm)
+        signal.signal(signal.SIGTERM, self.handle_shutdown_signal)
+        signal.signal(signal.SIGINT, self.handle_shutdown_signal)
 
     def run(self):
         while self.running:
@@ -20,15 +22,15 @@ class Server:
                 self.__handle_client_connection(client_sock)
         self.shutdown()
 
-    def handle_sigterm(self, signum, frame):
-        logging.info("SIGTERM detected, starting closure of server.")
+    def handle_shutdown_signal(self, signum, frame):
+        logging.info("action: shutdown | starting closure of server.") #TODO REMOVE THIS LATER
         self.running = False 
 
     def shutdown(self):
         # Clean up server resources
-        logging.info("Closing server and liberating resorces.")
+        logging.info("Closing server and liberating resorces.") #TODO REMOVE THIS LATER
         self._server_socket.close()
-        logging.info("Sucesfully closed server.")
+        logging.info("Sucesfully closed server.") #TODO REMOVE THIS LATER
 
     def __handle_client_connection(self, client_sock):
         """
@@ -56,9 +58,16 @@ class Server:
         Function blocks until a connection to a client is made.
         Then connection created is printed and returned
         """
-
         # Connection arrived
-        logging.info('action: accept_connections | result: in_progress')
-        c, addr = self._server_socket.accept()
-        logging.info(f'action: accept_connections | result: success | ip: {addr[0]}')
-        return c
+        try:
+            logging.info('action: accept_connections | result: in_progress')
+            client_sock, addr = self._server_socket.accept()
+            logging.info(f'action: accept_connections | result: success | ip: {addr[0]}')
+            return client_sock
+        except socket.timeout:
+            # No connections within the timeout period
+            logging.info('action: accept_connections | result: timeout')
+            return None
+        except BlockingIOError:
+            # Other non-blocking accept exception
+            return None
