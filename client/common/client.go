@@ -5,7 +5,9 @@ import (
 	"fmt"
 	"net"
 	"time"
-	
+	"os"
+	"strconv"
+	"encoding/binary"
 
 	"github.com/op/go-logging"
 )
@@ -53,51 +55,132 @@ func (c *Client) createClientSocket() error {
 	return nil
 }
 
-// StartClientLoop Send messages to the client until some time threshold is met
 func (c *Client) StartClientLoop() {
-	// There is an autoincremental msgID to identify every message sent
-	// Messages if the message amount threshold has not been surpassed
-	for msgID := 1; msgID <= c.config.LoopAmount; msgID++ {
-
-		select{
-			case <-c.shutdownChan: // Check if shutdown signal is received
-			log.Infof("Shutdown signal received, closing connection for client_id: %v", c.config.ID) //TODO remove this later
-			if c.conn != nil {
-				c.conn.Close() // Close the open connection if any
-			}
-			return // Exit the loop 
-			default:
-				// Create the connection the server in every loop iteration. Send an
-				c.createClientSocket()
-		
-				// TODO: Modify the send to avoid short-write
-				fmt.Fprintf(
-					c.conn,
-					"[CLIENT %v] Message N°%v\n",
-					c.config.ID,
-					msgID,
-				)
-				msg, err := bufio.NewReader(c.conn).ReadString('\n')
-				c.conn.Close()
-		
-				if err != nil {
-					log.Errorf("action: receive_message | result: fail | client_id: %v | error: %v",
-						c.config.ID,
-						err,
-					)
-					return
-				}
-		
-				log.Infof("action: receive_message | result: success | client_id: %v | msg: %v",
-					c.config.ID,
-					msg,
-				)
-		
-				// Wait a time between sending one message and the next one
-				time.Sleep(c.config.LoopPeriod)
-		
-		}
-
-			log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
+	err := c.createClientSocket()
+	if err != nil {
+		log.Errorf("action: connect | result: fail | client_id: %v | error: %v", c.config.ID, err) //TODO remove later
+		return
 	}
+	defer c.conn.Close()
+
+	dni := os.Getenv("DOCUMENTO")
+	number := os.Getenv("NUMERO")
+	name := os.Getenv("NOMBRE")
+	lastname := os.Getenv("APELLIDO")
+	dateOfBirth := os.Getenv("NACIMIENTO")
+
+	// Make bet
+	err = SendBet(c.conn, dni, name, lastname, dateOfBirth, number)
+	if err != nil {
+		log.Errorf("action: send_bet | result: fail | client_id: %v | error: %v", c.config.ID, err)
+		return
+	}
+
+	response, err := bufio.NewReader(c.conn).ReadString('\n')
+	if err != nil {
+		log.Errorf("action: receive_response | result: fail | client_id: %v | error: %v", c.config.ID, err) //TODO remove later
+		return
+	}
+
+	if response != "SUCCESS\n" {
+		log.Errorf("action: receive_response | result: fail | client_id: %v | response: %v", c.config.ID, response) //TODO remove later
+		return
+	}
+
+	log.Infof("action: SendBet | result: success | dni: %v | numero: %v", dni, number)
+
+	// Keep running until shutdown signal detected
+	for {
+		select {
+		case <-c.shutdownChan:
+			log.Infof("Shutdown signal received, closing connection for client_id: %v", c.config.ID) //TODO remove later
+			return
+		default:
+			time.Sleep(c.config.LoopPeriod)
+		}
+	}
+}
+
+	// from: "https://stackoverflow.com/questions/18995477/does-golang-provide-htonl-htons"
+func htonl(value int) []byte {
+	var buf [4]byte
+	binary.BigEndian.PutUint32(buf[:], uint32(value))
+	return buf[:]
+}
+
+func ntohl(b []byte) int {
+	return int(binary.BigEndian.Uint32(b))
+}
+
+func SendBet(
+	conn net.Conn,
+	dni string,
+	name string,
+	lastname string,
+	dateOfBirth string,
+	number string,
+) error {
+	// Helper function to send data with short write handling
+	sendAll := func(data []byte) error {
+		totalBytesWritten := 0
+		for totalBytesWritten < len(data) {
+			n, err := conn.Write(data[totalBytesWritten:])
+			if err != nil {
+				return err
+			}
+			totalBytesWritten += n
+		}
+		return nil
+	}
+
+	// Convert dni and number to int
+	dniInt, err := strconv.Atoi(dni)
+	if err != nil {
+		return fmt.Errorf("error converting DNI: %v", err)
+	}
+
+	numberInt, err := strconv.Atoi(number)
+	if err != nil {
+		return fmt.Errorf("error converting number: %v", err)
+	}
+
+	// 4 bytes
+	dniBytes := htonl(dniInt)
+	if err := sendAll(dniBytes); err != nil {
+		return err
+	}
+
+	// 4 bytes
+	numberBytes := htonl(numberInt)
+	if err := sendAll(numberBytes); err != nil {
+		return err
+	}
+
+	// 10 bytes
+	dateOfBirthBytes := []byte(dateOfBirth)
+	if err := sendAll(dateOfBirthBytes); err != nil {
+		return err
+	}
+
+	// send bytes of name + name
+	nameBytes := []byte(name)
+	nameLengthBytes := htonl(len(nameBytes))
+	if err := sendAll(nameLengthBytes); err != nil {
+		return err
+	}
+	if err := sendAll(nameBytes); err != nil {
+		return err
+	}
+
+	// send bytes of lastname + lastname
+	lastnameBytes := []byte(lastname)
+	lastnameLengthBytes := htonl(len(lastnameBytes))
+	if err := sendAll(lastnameLengthBytes); err != nil {
+		return err
+	}
+	if err := sendAll(lastnameBytes); err != nil {
+		return err
+	}
+
+	return nil
 }
