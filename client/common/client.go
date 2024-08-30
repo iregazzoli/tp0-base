@@ -63,6 +63,7 @@ func (c *Client) StartClientLoop() {
 	}
 	defer c.conn.Close()
 
+	id := os.Getenv("CLI_ID")
 	dni := os.Getenv("DOCUMENTO")
 	number := os.Getenv("NUMERO")
 	name := os.Getenv("NOMBRE")
@@ -70,7 +71,7 @@ func (c *Client) StartClientLoop() {
 	dateOfBirth := os.Getenv("NACIMIENTO")
 
 	// Make bet
-	err = SendBet(c.conn, dni, name, lastname, dateOfBirth, number)
+	err = SendBet(c.conn, id, dni, name, lastname, dateOfBirth, number)
 	if err != nil {
 		log.Errorf("action: send_bet | result: fail | client_id: %v | error: %v", c.config.ID, err)
 		return
@@ -83,11 +84,9 @@ func (c *Client) StartClientLoop() {
 	}
 
 	if response != "SUCCESS\n" {
-		log.Errorf("action: receive_response | result: fail | client_id: %v | response: %v", c.config.ID, response) //TODO remove later
+		log.Errorf("action: apuesta_enviada | result: success | dni: %v | numero: %v", dni, number) //Catedra
 		return
 	}
-
-	log.Infof("action: SendBet | result: success | dni: %v | numero: %v", dni, number)
 
 	// Keep running until shutdown signal detected
 	for {
@@ -114,6 +113,7 @@ func ntohl(b []byte) int {
 
 func SendBet(
 	conn net.Conn,
+	cliID string,
 	dni string,
 	name string,
 	lastname string,
@@ -133,7 +133,12 @@ func SendBet(
 		return nil
 	}
 
-	// Convert dni and number to int
+	// Convert clientId, dni and number to int
+	cliIDInt, err := strconv.Atoi(cliID)
+	if err != nil {
+		return fmt.Errorf("error converting CLI_ID: %v", err)
+	}
+
 	dniInt, err := strconv.Atoi(dni)
 	if err != nil {
 		return fmt.Errorf("error converting DNI: %v", err)
@@ -142,6 +147,12 @@ func SendBet(
 	numberInt, err := strconv.Atoi(number)
 	if err != nil {
 		return fmt.Errorf("error converting number: %v", err)
+	}
+
+	// 4 bytes
+	cliIDBytes := htonl(cliIDInt)
+	if err := sendAll(cliIDBytes); err != nil {
+		return err
 	}
 
 	// 4 bytes

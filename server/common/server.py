@@ -1,6 +1,7 @@
 import socket
 import logging
 import signal
+from .utils import *
 
 
 class Server:
@@ -43,9 +44,20 @@ class Server:
             addr = client_sock.getpeername()
             logging.info(f'action: accept_connection | result: success | ip: {addr[0]}')
 
-            bet = self.recv_bet(client_sock)
-            if bet:
-                logging.info(f'action: receive_bet | result: success | bet: {bet}')
+            bet_info = self.recv_bet(client_sock)
+            if bet_info:
+                bet = Bet(
+                    agency=bet_info['cli_id'],
+                    first_name=bet_info['name'],
+                    last_name=bet_info['lastname'],
+                    document=str(bet_info['dni']),
+                    birthdate=bet_info['date_of_birth'],
+                    number=str(bet_info['number'])
+                )
+
+                store_bets([bet])
+                logging.info(f"action: apuesta_almacenada | result: success | dni: {bet_info['dni']} | numero: {bet_info['number']}") #catedra
+
                 client_sock.sendall(b"SUCCESS\n")
             else:
                 client_sock.sendall(b"FAIL\n")
@@ -91,6 +103,10 @@ class Server:
             return buffer
 
         try:
+            # CLI_ID (4 bytes)
+            cli_id_bytes = recv_exact(client_sock, 4)
+            cli_id = int.from_bytes(cli_id_bytes, byteorder='big')
+
             # DNI (4 bytes)
             dni_bytes = recv_exact(client_sock, 4)
             dni = int.from_bytes(dni_bytes, byteorder='big')
@@ -103,19 +119,20 @@ class Server:
             date_of_birth_bytes = recv_exact(client_sock, 10)
             date_of_birth = date_of_birth_bytes.decode('utf-8')
 
-            # name size and name
+            # name size (4 bytes) and name (n bytes)
             name_length_bytes = recv_exact(client_sock, 4)
             name_length = int.from_bytes(name_length_bytes, byteorder='big')
             name_bytes = recv_exact(client_sock, name_length)
             name = name_bytes.decode('utf-8')
 
-            # lastname size and lastname
+            # lastname size (4 bytes) and lastname (m bytes)
             lastname_length_bytes = recv_exact(client_sock, 4)
             lastname_length = int.from_bytes(lastname_length_bytes, byteorder='big')
             lastname_bytes = recv_exact(client_sock, lastname_length)
             lastname = lastname_bytes.decode('utf-8')
 
             return {
+                'cli_id': cli_id,
                 'dni': dni,
                 'number': number,
                 'date_of_birth': date_of_birth,
