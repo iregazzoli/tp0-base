@@ -25,7 +25,7 @@ echo "    volumes:"                             >> $OUTPUT_FILE
 echo "      - ./server/config.ini:/config.ini"  >> $OUTPUT_FILE
 echo ""                                         >> $OUTPUT_FILE
 
-python3 helpers/create_clients.py $OUTPUT_FILE $NUM_CLIENTS
+python3 utils/create_clients.py $OUTPUT_FILE $NUM_CLIENTS
 
 echo "networks:"                                >> $OUTPUT_FILE
 echo "  testing_net:"                           >> $OUTPUT_FILE

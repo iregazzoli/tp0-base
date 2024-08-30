@@ -8,7 +8,6 @@ import (
 	"os"
 	"strconv"
 	"encoding/binary"
-
 	"github.com/op/go-logging"
 )
 
@@ -63,6 +62,8 @@ func (c *Client) StartClientLoop() {
 	}
 	defer c.conn.Close()
 
+	// protocol := utils.ClientProtocol{}
+
 	id := os.Getenv("CLI_ID")
 	dni := os.Getenv("DOCUMENTO")
 	number := os.Getenv("NUMERO")
@@ -70,23 +71,13 @@ func (c *Client) StartClientLoop() {
 	lastname := os.Getenv("APELLIDO")
 	dateOfBirth := os.Getenv("NACIMIENTO")
 
-	// Make bet
-	err = SendBet(c.conn, id, dni, name, lastname, dateOfBirth, number)
-	if err != nil {
+	success, err := SendBet(c.conn, id, dni, name, lastname, dateOfBirth, number)
+	if err != nil || !success {
 		log.Errorf("action: send_bet | result: fail | client_id: %v | error: %v", c.config.ID, err)
 		return
 	}
 
-	response, err := bufio.NewReader(c.conn).ReadString('\n')
-	if err != nil {
-		log.Errorf("action: receive_response | result: fail | client_id: %v | error: %v", c.config.ID, err) //TODO remove later
-		return
-	}
-
-	if response != "SUCCESS\n" {
-		log.Errorf("action: apuesta_enviada | result: success | dni: %v | numero: %v", dni, number) //Catedra
-		return
-	}
+	log.Errorf("action: apuesta_enviada | result: success | dni: %v | numero: %v", dni, number) //Catedra
 
 	// Keep running until shutdown signal detected
 	for {
@@ -100,7 +91,6 @@ func (c *Client) StartClientLoop() {
 	}
 }
 
-	// from: "https://stackoverflow.com/questions/18995477/does-golang-provide-htonl-htons"
 func htonl(value int) []byte {
 	var buf [4]byte
 	binary.BigEndian.PutUint32(buf[:], uint32(value))
@@ -111,6 +101,18 @@ func ntohl(b []byte) int {
 	return int(binary.BigEndian.Uint32(b))
 }
 
+func sendAll(conn net.Conn, data []byte) error {
+	totalBytesWritten := 0
+	for totalBytesWritten < len(data) {
+		n, err := conn.Write(data[totalBytesWritten:])
+		if err != nil {
+			return err
+		}
+		totalBytesWritten += n
+	}
+	return nil
+}
+
 func SendBet(
 	conn net.Conn,
 	cliID string,
@@ -119,79 +121,77 @@ func SendBet(
 	lastname string,
 	dateOfBirth string,
 	number string,
-) error {
-	// Helper function to send data with short write handling
-	sendAll := func(data []byte) error {
-		totalBytesWritten := 0
-		for totalBytesWritten < len(data) {
-			n, err := conn.Write(data[totalBytesWritten:])
-			if err != nil {
-				return err
-			}
-			totalBytesWritten += n
-		}
-		return nil
-	}
-
+) (bool, error) {
 	// Convert clientId, dni and number to int
 	cliIDInt, err := strconv.Atoi(cliID)
 	if err != nil {
-		return fmt.Errorf("error converting CLI_ID: %v", err)
+		return false, fmt.Errorf("error converting CLI_ID: %v", err)
 	}
 
 	dniInt, err := strconv.Atoi(dni)
 	if err != nil {
-		return fmt.Errorf("error converting DNI: %v", err)
+		return false, fmt.Errorf("error converting DNI: %v", err)
 	}
 
 	numberInt, err := strconv.Atoi(number)
 	if err != nil {
-		return fmt.Errorf("error converting number: %v", err)
+		return false, fmt.Errorf("error converting number: %v", err)
 	}
 
 	// 4 bytes
 	cliIDBytes := htonl(cliIDInt)
-	if err := sendAll(cliIDBytes); err != nil {
-		return err
+	if err := sendAll(conn, cliIDBytes); err != nil {
+		return false, err
 	}
 
 	// 4 bytes
 	dniBytes := htonl(dniInt)
-	if err := sendAll(dniBytes); err != nil {
-		return err
+	if err := sendAll(conn, dniBytes); err != nil {
+		return false, err
 	}
 
 	// 4 bytes
 	numberBytes := htonl(numberInt)
-	if err := sendAll(numberBytes); err != nil {
-		return err
+	if err := sendAll(conn, numberBytes); err != nil {
+		return false, err
 	}
 
 	// 10 bytes
 	dateOfBirthBytes := []byte(dateOfBirth)
-	if err := sendAll(dateOfBirthBytes); err != nil {
-		return err
+	if err := sendAll(conn, dateOfBirthBytes); err != nil {
+		return false, err
 	}
 
 	// send bytes of name + name
 	nameBytes := []byte(name)
 	nameLengthBytes := htonl(len(nameBytes))
-	if err := sendAll(nameLengthBytes); err != nil {
-		return err
+	if err := sendAll(conn, nameLengthBytes); err != nil {
+		return false, err
 	}
-	if err := sendAll(nameBytes); err != nil {
-		return err
+	if err := sendAll(conn, nameBytes); err != nil {
+		return false, err
 	}
 
 	// send bytes of lastname + lastname
 	lastnameBytes := []byte(lastname)
 	lastnameLengthBytes := htonl(len(lastnameBytes))
-	if err := sendAll(lastnameLengthBytes); err != nil {
-		return err
+	if err := sendAll(conn, lastnameLengthBytes); err != nil {
+		return false, err
 	}
-	if err := sendAll(lastnameBytes); err != nil {
-		return err
+	if err := sendAll(conn, lastnameBytes); err != nil {
+		return false, err
 	}
 
-	return nil
+	// Wait for server response
+	response, err := bufio.NewReader(conn).ReadString('\n')
+	if err != nil {
+		return false, fmt.Errorf("error receiving server response: %v", err)
+	}
+
+	// Check if the response is "SUCCESS\n"
+	if response != "SUCCESS\n" {
+		return false, fmt.Errorf("bet was not successful, server response: %v", response)
+	}
+
+	return true, nil
 }
