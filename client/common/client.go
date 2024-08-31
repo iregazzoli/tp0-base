@@ -9,7 +9,49 @@ import (
 	"strconv"
 	"encoding/binary"
 	"github.com/op/go-logging"
+	"encoding/csv"
+	"bytes"
 )
+
+type Bet struct {
+	CliID       string
+	DNI         string
+	Name        string
+	Lastname    string
+	DateOfBirth string
+	Number      string
+}
+
+func LoadBetsFromCSV(clientID string) ([]Bet, error) {
+	// make correspoing filename
+	filename := fmt.Sprintf("/dataset/agency-%s.csv", clientID)
+	file, err := os.Open(filename)
+	if err != nil {
+		return nil, fmt.Errorf("error opening file: %v", err)
+	}
+	defer file.Close()
+
+	reader := csv.NewReader(file)
+	records, err := reader.ReadAll()
+	if err != nil {
+		return nil, fmt.Errorf("error reading CSV: %v", err)
+	}
+
+	var bets []Bet
+	for _, record := range records {
+		bet := Bet{
+			CliID:       clientID,
+			Name:        record[0],
+			Lastname:    record[1],
+			DNI:    		 record[2],
+			DateOfBirth: record[3],
+			Number:      record[4],
+		}
+		bets = append(bets, bet)
+	}
+
+	return bets, nil
+}
 
 var log = logging.MustGetLogger("log")
 
@@ -67,12 +109,14 @@ func (c *Client) StartClientLoop() {
 	id := os.Getenv("CLI_ID")
 	dni := os.Getenv("DOCUMENTO")
 	number := os.Getenv("NUMERO")
-	name := os.Getenv("NOMBRE")
-	lastname := os.Getenv("APELLIDO")
-	dateOfBirth := os.Getenv("NACIMIENTO")
 
-	// Call the SendBet function
-	success, err := SendBet(c.conn, id, dni, name, lastname, dateOfBirth, number)
+	bets, err := LoadBetsFromCSV(id)
+	if err != nil {
+		log.Errorf("action: load_bets | result: fail | client_id: %v | error: %v", c.config.ID, err)
+		return
+	}
+
+	success, err := SendBatch(c.conn, bets)
 	if err != nil || !success {
 		log.Errorf("action: send_bet | result: fail | client_id: %v | error: %v", c.config.ID, err)
 		return
@@ -114,84 +158,75 @@ func sendAll(conn net.Conn, data []byte) error {
 	return nil
 }
 
-func SendBet(
+func SendBatch(
 	conn net.Conn,
-	cliID string,
-	dni string,
-	name string,
-	lastname string,
-	dateOfBirth string,
-	number string,
+	bets []Bet,
 ) (bool, error) {
-	// Convert clientId, dni and number to int
-	cliIDInt, err := strconv.Atoi(cliID)
-	if err != nil {
-		return false, fmt.Errorf("error converting CLI_ID: %v", err)
+	var batchBuffer bytes.Buffer
+
+	// Número de apuestas
+	numBets := len(bets)
+	numBetsBytes := htonl(numBets)
+	batchBuffer.Write(numBetsBytes)
+
+	for _, bet := range bets {
+		// Convert Id, DNI and Number to int
+		cliIDInt, err := strconv.Atoi(bet.CliID)
+		if err != nil {
+			return false, fmt.Errorf("error converting CLI_ID: %v", err)
+		}
+		dniInt, err := strconv.Atoi(bet.DNI)
+		if err != nil {
+			return false, fmt.Errorf("error converting DNI: %v", err)
+		}
+		numberInt, err := strconv.Atoi(bet.Number)
+		if err != nil {
+			return false, fmt.Errorf("error converting number: %v", err)
+		}
+		
+		// Convert fields to bytes and send them
+		// 4 bytes
+		cliIDBytes := htonl(cliIDInt)
+		batchBuffer.Write(cliIDBytes)
+
+		// send bytes of name + name
+		nameBytes := []byte(bet.Name)
+		nameLengthBytes := htonl(len(nameBytes))
+		batchBuffer.Write(nameLengthBytes)
+		batchBuffer.Write(nameBytes)
+
+		// send bytes of lastname + lastname
+		lastnameBytes := []byte(bet.Lastname)
+		lastnameLengthBytes := htonl(len(lastnameBytes))
+		batchBuffer.Write(lastnameLengthBytes)
+		batchBuffer.Write(lastnameBytes)
+		
+		// 4 bytes
+		dniBytes := htonl(dniInt)
+		batchBuffer.Write(dniBytes)
+
+		// 10 bytes
+		dateOfBirthBytes := []byte(bet.DateOfBirth)
+		batchBuffer.Write(dateOfBirthBytes)
+
+		// 4 bytes
+		numberBytes := htonl(numberInt)
+		batchBuffer.Write(numberBytes)
 	}
 
-	dniInt, err := strconv.Atoi(dni)
-	if err != nil {
-		return false, fmt.Errorf("error converting DNI: %v", err)
-	}
-
-	numberInt, err := strconv.Atoi(number)
-	if err != nil {
-		return false, fmt.Errorf("error converting number: %v", err)
-	}
-
-	// 4 bytes
-	cliIDBytes := htonl(cliIDInt)
-	if err := sendAll(conn, cliIDBytes); err != nil {
+	// Send whole batch in one send operation
+	if err := sendAll(conn, batchBuffer.Bytes()); err != nil {
 		return false, err
 	}
 
-	// 4 bytes
-	dniBytes := htonl(dniInt)
-	if err := sendAll(conn, dniBytes); err != nil {
-		return false, err
-	}
-
-	// 4 bytes
-	numberBytes := htonl(numberInt)
-	if err := sendAll(conn, numberBytes); err != nil {
-		return false, err
-	}
-
-	// 10 bytes
-	dateOfBirthBytes := []byte(dateOfBirth)
-	if err := sendAll(conn, dateOfBirthBytes); err != nil {
-		return false, err
-	}
-
-	// send bytes of name + name
-	nameBytes := []byte(name)
-	nameLengthBytes := htonl(len(nameBytes))
-	if err := sendAll(conn, nameLengthBytes); err != nil {
-		return false, err
-	}
-	if err := sendAll(conn, nameBytes); err != nil {
-		return false, err
-	}
-
-	// send bytes of lastname + lastname
-	lastnameBytes := []byte(lastname)
-	lastnameLengthBytes := htonl(len(lastnameBytes))
-	if err := sendAll(conn, lastnameLengthBytes); err != nil {
-		return false, err
-	}
-	if err := sendAll(conn, lastnameBytes); err != nil {
-		return false, err
-	}
-
-	// Wait for server response
+	// Wait server answer
 	response, err := bufio.NewReader(conn).ReadString('\n')
 	if err != nil {
 		return false, fmt.Errorf("error receiving server response: %v", err)
 	}
 
-	// Check if the response is "SUCCESS\n"
 	if response != "SUCCESS\n" {
-		return false, fmt.Errorf("bet was not successful, server response: %v", response)
+		return false, fmt.Errorf("batch was not successful, server response: %v", response)
 	}
 
 	return true, nil
