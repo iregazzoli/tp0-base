@@ -45,14 +45,18 @@ class Server:
             addr = client_sock.getpeername()
             logging.info(f'action: accept_connection | result: success | ip: {addr[0]}')
 
-            bets = self.protocol.recv_bet_batch(client_sock)
-            if bets:
-                store_bets(bets)
-                logging.info(f"apuesta_recibida | result: success | cantidad: {len(bets)}")
+            all_batches = self.protocol.recv_batches(client_sock)
 
-                client_sock.sendall(b"SUCCESS\n")
-            else:
-                client_sock.sendall(b"FAIL\n")
+            amount_of_bets = 0
+
+            for bets in all_batches:
+                amount_of_bets += len(bets)
+                store_bets(bets)
+
+            logging.info(f"action: apuesta_recibida | result: success | cantidad: {amount_of_bets}") 
+
+        except ValueError as e:
+            logging.error(f"action: process_batches | result: fail | error: {e}")
 
         except OSError as e:
             logging.error(f"action: receive_message | result: fail | error: {e}")

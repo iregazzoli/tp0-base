@@ -23,7 +23,6 @@ type Bet struct {
 }
 
 func LoadBetsFromCSV(clientID string) ([]Bet, error) {
-	// make correspoing filename
 	filename := fmt.Sprintf("/dataset/agency-%s.csv", clientID)
 	file, err := os.Open(filename)
 	if err != nil {
@@ -61,6 +60,7 @@ type ClientConfig struct {
 	ServerAddress string
 	LoopAmount    int
 	LoopPeriod    time.Duration
+	MaxBatchSize  int
 }
 
 // Client Entity that encapsulates how
@@ -109,6 +109,7 @@ func (c *Client) StartClientLoop() {
 	id := os.Getenv("CLI_ID")
 	dni := os.Getenv("DOCUMENTO")
 	number := os.Getenv("NUMERO")
+	maxBatchSize := c.config.MaxBatchSize
 
 	bets, err := LoadBetsFromCSV(id)
 	if err != nil {
@@ -116,13 +117,13 @@ func (c *Client) StartClientLoop() {
 		return
 	}
 
-	success, err := SendBatch(c.conn, bets)
-	if err != nil || !success {
+	err = SendBatches(c.conn, bets, maxBatchSize)
+	if err != nil {
 		log.Errorf("action: send_bet | result: fail | client_id: %v | error: %v", c.config.ID, err)
 		return
 	}
 
-	log.Errorf("action: apuesta_enviada | result: success | dni: %v | numero: %v", dni, number) //Catedra
+	log.Infof("action: apuesta_enviada | result: success | dni: %v | numero: %v", dni, number) //Catedra
 
 	// Keep running until shutdown signal detected
 	for {
@@ -158,13 +159,44 @@ func sendAll(conn net.Conn, data []byte) error {
 	return nil
 }
 
+func splitBetsIntoBatches(bets []Bet, maxBatchSize int) [][]Bet {
+	var batches [][]Bet
+	for i := 0; i < len(bets); i += maxBatchSize {
+			end := i + maxBatchSize
+			if end > len(bets) {
+					end = len(bets)
+			}
+			batches = append(batches, bets[i:end])
+	}
+	return batches
+}
+
+func SendBatches(conn net.Conn, bets []Bet, maxBatchSize int) error {
+	batches := splitBetsIntoBatches(bets, maxBatchSize)
+
+	// 4 bytes
+	numBatches := len(batches)
+	numBatchesBytes := htonl(numBatches)
+	if err := sendAll(conn, numBatchesBytes); err != nil {
+		return err
+	}
+
+	for _, batch := range batches {
+		if err := SendBatch(conn, batch); err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
+
 func SendBatch(
 	conn net.Conn,
 	bets []Bet,
-) (bool, error) {
+) error {
 	var batchBuffer bytes.Buffer
 
-	// Número de apuestas
 	numBets := len(bets)
 	numBetsBytes := htonl(numBets)
 	batchBuffer.Write(numBetsBytes)
@@ -173,15 +205,15 @@ func SendBatch(
 		// Convert Id, DNI and Number to int
 		cliIDInt, err := strconv.Atoi(bet.CliID)
 		if err != nil {
-			return false, fmt.Errorf("error converting CLI_ID: %v", err)
+			return fmt.Errorf("error converting CLI_ID: %v", err)
 		}
 		dniInt, err := strconv.Atoi(bet.DNI)
 		if err != nil {
-			return false, fmt.Errorf("error converting DNI: %v", err)
+			return fmt.Errorf("error converting DNI: %v", err)
 		}
 		numberInt, err := strconv.Atoi(bet.Number)
 		if err != nil {
-			return false, fmt.Errorf("error converting number: %v", err)
+			return fmt.Errorf("error converting number: %v", err)
 		}
 		
 		// Convert fields to bytes and send them
@@ -216,18 +248,18 @@ func SendBatch(
 
 	// Send whole batch in one send operation
 	if err := sendAll(conn, batchBuffer.Bytes()); err != nil {
-		return false, err
+		return err
 	}
 
 	// Wait server answer
 	response, err := bufio.NewReader(conn).ReadString('\n')
 	if err != nil {
-		return false, fmt.Errorf("error receiving server response: %v", err)
+		return fmt.Errorf("error receiving server response: %v", err)
 	}
 
 	if response != "SUCCESS\n" {
-		return false, fmt.Errorf("batch was not successful, server response: %v", response)
+		return fmt.Errorf("batch was not successful, server response: %v", response)
 	}
 
-	return true, nil
+	return nil
 }

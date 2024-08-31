@@ -110,6 +110,7 @@ func main() {
 		ID:            v.GetString("id"),
 		LoopAmount:    v.GetInt("loop.amount"),
 		LoopPeriod:    v.GetDuration("loop.period"),
+		MaxBatchSize:  v.GetInt("batch.maxAmount"),
 	}
 
 	
