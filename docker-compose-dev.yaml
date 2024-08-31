@@ -11,6 +11,7 @@ services:
       - testing_net
     volumes:
       - ./server/config.ini:/config.ini
+      - ./server/common:/common
 
   client1:
     container_name: client1
@@ -30,6 +31,7 @@ services:
       - server
     volumes:
       - ./client/config.yaml:/config.yaml
+      - ./client/dataset:/dataset 
 
 networks:
   testing_net:
