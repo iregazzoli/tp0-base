@@ -107,8 +107,6 @@ func (c *Client) StartClientLoop() {
 	// protocol := utils.ClientProtocol{}
 
 	id := os.Getenv("CLI_ID")
-	dni := os.Getenv("DOCUMENTO")
-	number := os.Getenv("NUMERO")
 	maxBatchSize := c.config.MaxBatchSize
 
 	bets, err := LoadBetsFromCSV(id)
@@ -123,7 +121,20 @@ func (c *Client) StartClientLoop() {
 		return
 	}
 
-	log.Infof("action: apuesta_enviada | result: success | dni: %v | numero: %v", dni, number) //Catedra
+	err = startLottery(c.conn)
+	if err != nil {
+		log.Errorf("action: start_lottery | result: fail | client_id: %v | error: %v", c.config.ID, err)
+		return
+	}
+
+	winnerNumber, err := receiveWinnerNumber(c.conn)
+	if err != nil {
+		log.Errorf("action: receive_winner_number | result: fail | client_id: %v | error: %v", c.config.ID, err)
+		return
+	}
+
+	winners := checkIfWinner(winnerNumber, bets)
+	log.Infof("action: consulta_ganadores | result: success | cant_ganadores: %v", winners) //CATEDRA
 
 	// Keep running until shutdown signal detected
 	for {
@@ -144,7 +155,8 @@ func htonl(value int) []byte {
 }
 
 func ntohl(b []byte) int {
-	return int(binary.BigEndian.Uint32(b))
+	convertedValue := int(binary.LittleEndian.Uint32(b))
+	return convertedValue
 }
 
 func sendAll(conn net.Conn, data []byte) error {
@@ -262,4 +274,36 @@ func SendBatch(
 	}
 
 	return nil
+}
+
+func startLottery(conn net.Conn) error {
+	readyByte := byte(1)
+	_, err := conn.Write([]byte{readyByte})
+	if err != nil {
+		return fmt.Errorf("error sending lottery ready byte: %v", err)
+	}
+	log.Infof("action: notify_end | result: success")
+	return nil
+}
+
+func receiveWinnerNumber(conn net.Conn) (int, error) {
+	var winnerNumberBytes [4]byte
+	if _, err := conn.Read(winnerNumberBytes[:]); err != nil {
+			return 0, fmt.Errorf("error receiving winner number: %v", err)
+	}
+
+	winnerNumber := ntohl(winnerNumberBytes[:])
+	
+	return winnerNumber, nil
+}
+
+func checkIfWinner(winnerNumber int, bets []Bet) int {
+	winners := 0
+	for _, bet := range bets {
+		betNumber, err := strconv.Atoi(bet.Number)
+		if err == nil && betNumber == winnerNumber {
+			winners += 1
+		}
+	}
+	return winners
 }

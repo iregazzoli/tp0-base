@@ -1,5 +1,6 @@
 import logging
 from .utils import Bet
+import socket
 
 class ServerProtocol:
     def recv_exact(self, sock, num_bytes):
@@ -87,3 +88,24 @@ class ServerProtocol:
         except ConnectionError as e:
             logging.error(f"action: receive_message | result: fail | error: {e}")
             return None
+
+    def recv_lottery_confirmation(self, client_sock):
+        try:
+            ready_byte = client_sock.recv(1)
+            if ready_byte and ready_byte[0] == 1:
+                logging.info("action: recv_lottery_confirmation | result: success")
+                return True
+            else:
+                logging.error("action: recv_lottery_confirmation | result: fail | reason: invalid byte")
+                return False
+        except Exception as e:
+            logging.error(f"action: recv_lottery_confirmation | result: fail | error: {e}")
+            return False
+        
+    def send_winner(self, client_sock, winner_number):
+        try:
+            winner_number_bytes = socket.htonl(winner_number)
+            client_sock.sendall(winner_number_bytes.to_bytes(4, 'big'))
+            logging.info(f"action: send_winner | result: success | number: {winner_number}")
+        except Exception as e:
+            logging.error(f"action: send_winner | result: fail | error: {e}")
