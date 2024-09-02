@@ -1,11 +1,10 @@
 import logging
 from .utils import Bet
-import socket
 
 class ServerProtocol:
     def recv_exact(self, sock, num_bytes):
         """
-        Helper function to receive a specific number of bytes
+        Helper function to receive a specific number of bytes synchronously
         """
         buffer = bytearray()
         while len(buffer) < num_bytes:
@@ -14,17 +13,17 @@ class ServerProtocol:
                 raise ConnectionError("Connection closed while receiving data")
             buffer.extend(packet)
         return buffer
-     
+
     def recv_batches(self, client_sock):
         try:
             # (4 bytes)
             num_batches_bytes = self.recv_exact(client_sock, 4)
             num_batches = int.from_bytes(num_batches_bytes, byteorder='big')
 
-            all_batches = [] # Array of array of bets
+            all_batches = []  # Array of array of bets
 
             for _ in range(num_batches):
-                bets = self.recv_batch(client_sock) #array of bets
+                bets = self.recv_batch(client_sock)  # array of bets
                 if not bets:
                     client_sock.sendall(b"FAIL\n")
                     raise ValueError("Batch processing failed.")
@@ -35,8 +34,7 @@ class ServerProtocol:
 
         except Exception as e:
             logging.error(f"action: recv_batches | result: fail | error: {e}")
-            return  []
-
+            return []
 
     def recv_batch(self, client_sock):
         try:
@@ -93,7 +91,6 @@ class ServerProtocol:
         try:
             ready_byte = client_sock.recv(1)
             if ready_byte and ready_byte[0] == 1:
-                logging.info("action: recv_lottery_confirmation | result: success")
                 return True
             else:
                 logging.error("action: recv_lottery_confirmation | result: fail | reason: invalid byte")
@@ -104,8 +101,8 @@ class ServerProtocol:
         
     def send_winner(self, client_sock, winner_number):
         try:
-            winner_number_bytes = socket.htonl(winner_number)
-            client_sock.sendall(winner_number_bytes.to_bytes(4, 'big'))
+            winner_number_bytes = winner_number.to_bytes(4, 'big')
+            client_sock.sendall(winner_number_bytes)
             logging.info(f"action: send_winner | result: success | number: {winner_number}")
         except Exception as e:
             logging.error(f"action: send_winner | result: fail | error: {e}")

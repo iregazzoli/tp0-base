@@ -84,16 +84,31 @@ func NewClient(config ClientConfig, shutdownChan <-chan struct{}) *Client {
 // failure, error is printed in stdout/stderr and exit 1
 // is returned
 func (c *Client) createClientSocket() error {
-	conn, err := net.Dial("tcp", c.config.ServerAddress)
-	if err != nil {
+	var conn net.Conn
+	var err error
+	retryCount := 0
+	maxRetries := 5
+	initialDelay := 2 * time.Second
+
+	for retryCount < maxRetries {
+		conn, err = net.Dial("tcp", c.config.ServerAddress)
+		if err == nil {
+			c.conn = conn
+			return nil
+		}
+
 		log.Criticalf(
-			"action: connect | result: fail | client_id: %v | error: %v",
+			"action: connect | result: fail | client_id: %v | error: %v | retry: %d",
 			c.config.ID,
 			err,
+			retryCount,
 		)
+
+		retryCount++
+		time.Sleep(initialDelay * time.Duration(retryCount))
 	}
-	c.conn = conn
-	return nil
+
+	return err
 }
 
 func (c *Client) StartClientLoop() {
@@ -155,7 +170,7 @@ func htonl(value int) []byte {
 }
 
 func ntohl(b []byte) int {
-	convertedValue := int(binary.LittleEndian.Uint32(b))
+	convertedValue := int(binary.BigEndian.Uint32(b))
 	return convertedValue
 }
 
