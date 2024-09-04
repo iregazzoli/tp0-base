@@ -68,7 +68,18 @@ func (c *Client) StartClientLoop() {
 			return // Exit the loop 
 			default:
 				// Create the connection the server in every loop iteration. Send an
-				c.createClientSocket()
+				err := c.createClientSocket()
+								
+				//Handle error so socket doesn't explode if it can't connect to server
+				if err != nil || c.conn == nil {
+					log.Errorf("action: connect | result: fail | client_id: %v | error: %v", c.config.ID, err)
+					
+					// Esperar un poco antes de reintentar
+					time.Sleep(c.config.LoopPeriod)
+					continue // Reintentar en la siguiente iteración
+				}
+
+				c.conn.SetReadDeadline(time.Now().Add(5 * time.Second))
 		
 				// TODO: Modify the send to avoid short-write
 				fmt.Fprintf(
