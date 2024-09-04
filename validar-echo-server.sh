@@ -1,5 +1,5 @@
-NETWORK_NAME="tp0-base_testing_net"
-SERVER_CONTAINER="tp0-base-server-1"  
+NETWORK_NAME="tp0_testing_net"
+SERVER_CONTAINER="server"
 SERVER_PORT=12345
 TEST_MESSAGE="Hello, World!"
 

@@ -10,8 +10,10 @@ fi
 OUTPUT_FILE=$1
 NUM_CLIENTS=$2
 
-echo "services:"                                 > $OUTPUT_FILE
+echo "name: tp0"                                 > $OUTPUT_FILE
+echo "services:"                                >> $OUTPUT_FILE
 echo "  server:"                                >> $OUTPUT_FILE
+echo "    container_name: server"               >> $OUTPUT_FILE
 echo "    image: server:latest"                 >> $OUTPUT_FILE
 echo "    ports:"                               >> $OUTPUT_FILE
 echo "      - \"8081:80\""                      >> $OUTPUT_FILE
@@ -34,5 +36,4 @@ echo "      driver: default"                    >> $OUTPUT_FILE
 echo "      config:"                            >> $OUTPUT_FILE
 echo "        - subnet: 172.25.125.0/24"        >> $OUTPUT_FILE
 
-# Use the color constants in the printf statement
 printf "${GREEN}Successfully modified file ${YELLOW}%s${GREEN} with ${YELLOW}%d${GREEN} clients.${WHITE}\n" "$OUTPUT_FILE" "$NUM_CLIENTS"
