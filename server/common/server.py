@@ -77,8 +77,6 @@ class Server:
             logging.info(f'action: accept_connections | result: success | ip: {addr[0]}')
             return client_sock
         except socket.timeout:
-            # No connections within the timeout period
-            logging.info('action: accept_connections | result: timeout') #TODO REMOVE THIS LATER
             return None
         except BlockingIOError:
             # Other non-blocking accept exception
