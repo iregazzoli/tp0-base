@@ -9,7 +9,6 @@ def generate_clients(filename, num_clients):
             f.write(f"    entrypoint: /client\n")
             f.write(f"    environment:\n")
             f.write(f"      - CLIENT_ID={i}\n")
-            f.write(f"      - CLI_LOG_LEVEL=DEBUG\n")
             f.write(f"    networks:\n")
             f.write(f"      - testing_net\n")
             f.write(f"    depends_on:\n")
