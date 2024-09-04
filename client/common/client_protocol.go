@@ -1,4 +1,5 @@
-//FIgure later why Go is being a little baby about imports
+package common
+
 import (
 	"encoding/binary"
 	"fmt"
@@ -60,45 +61,45 @@ func (cp *ClientProtocol) SendBet(
 
 	// 4 bytes
 	cliIDBytes := cp.htonl(cliIDInt)
-	if err := sendAll(cliIDBytes); err != nil {
+	if err := cp.sendAll(conn, cliIDBytes); err != nil {
 		return false, err
 	}
 
 	// 4 bytes
 	dniBytes := cp.htonl(dniInt)
-	if err := sendAll(dniBytes); err != nil {
+	if err := cp.sendAll(conn, dniBytes); err != nil {
 		return false, err
 	}
 
 	// 4 bytes
 	numberBytes := cp.htonl(numberInt)
-	if err := sendAll(numberBytes); err != nil {
+	if err := cp.sendAll(conn, numberBytes); err != nil {
 		return false, err
 	}
 
 	// 10 bytes
 	dateOfBirthBytes := []byte(dateOfBirth)
-	if err := sendAll(dateOfBirthBytes); err != nil {
+	if err := cp.sendAll(conn, dateOfBirthBytes); err != nil {
 		return false, err
 	}
 
 	// send bytes of name + name
 	nameBytes := []byte(name)
 	nameLengthBytes := cp.htonl(len(nameBytes))
-	if err := sendAll(nameLengthBytes); err != nil {
+	if err := cp.sendAll(conn, nameLengthBytes); err != nil {
 		return false, err
 	}
-	if err := sendAll(nameBytes); err != nil {
+	if err := cp.sendAll(conn, nameBytes); err != nil {
 		return false, err
 	}
 
 	// send bytes of lastname + lastname
 	lastnameBytes := []byte(lastname)
 	lastnameLengthBytes := cp.htonl(len(lastnameBytes))
-	if err := sendAll(lastnameLengthBytes); err != nil {
+	if err := cp.sendAll(conn, lastnameLengthBytes); err != nil {
 		return false, err
 	}
-	if err := sendAll(lastnameBytes); err != nil {
+	if err := cp.sendAll(conn, lastnameBytes); err != nil {
 		return false, err
 	}
 
