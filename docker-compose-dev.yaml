@@ -3,6 +3,8 @@ services:
   server:
     container_name: server
     image: server:latest
+    ports:
+      - "8081:80"
     entrypoint: python3 /main.py
     environment:
       - PYTHONUNBUFFERED=1
@@ -24,6 +26,25 @@ services:
       - DOCUMENTO=30904465
       - NACIMIENTO=1999-03-17
       - NUMERO=7574
+    networks:
+      - testing_net
+    depends_on:
+      - server
+    volumes:
+      - ./client/config.yaml:/config.yaml
+
+  client2:
+    container_name: client2
+    image: client:latest
+    entrypoint: /client
+    environment:
+      - CLI_ID=2
+      - CLI_LOG_LEVEL=DEBUG
+      - NOMBRE=Maria Fernanda
+      - APELLIDO=Gomez
+      - DOCUMENTO=32985476
+      - NACIMIENTO=1985-08-12
+      - NUMERO=1289
     networks:
       - testing_net
     depends_on:
