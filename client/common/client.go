@@ -92,6 +92,15 @@ func (c *Client) createClientSocket() error {
 		)
 	}
 	c.conn = conn
+
+	clientIDInt, err := strconv.Atoi(os.Getenv("CLI_ID"))
+	if err != nil {
+			return fmt.Errorf("error converting client ID to int: %v", err)
+	}
+	clientIDBytes := c.protocol.htonl(clientIDInt)
+	if err := c.protocol.sendAll(c.conn, clientIDBytes); err != nil {
+			return fmt.Errorf("error sending client ID to server: %v", err)
+	}
 	return nil
 }
 
@@ -126,14 +135,17 @@ func (c *Client) StartClientLoop() {
 		return
 	}
 
-	winnerNumber, err := c.protocol.receiveWinnerNumber(c.conn)
+	winners, err := c.protocol.receiveWinners(c.conn)
 	if err != nil {
 		log.Errorf("action: receive_winner_number | result: fail | client_id: %v | error: %v", c.config.ID, err)
 		return
 	}
 
-	winners := checkIfWinner(winnerNumber, bets)
-	log.Infof("action: consulta_ganadores | result: success | cant_ganadores: %v", winners) //CATEDRA
+	log.Infof("action: consulta_ganadores | result: success | cant_ganadores: %v", len(winners))
+
+	for _, winner := range winners {
+			log.Infof("action: consulta_ganadores | ganador_numero: %v | ganador_dni: %v", winner[0], winner[1])
+	}
 
 	// Keep running until shutdown signal detected
 	for {
@@ -145,15 +157,4 @@ func (c *Client) StartClientLoop() {
 			time.Sleep(c.config.LoopPeriod)
 		}
 	}
-}
-
-func checkIfWinner(winnerNumber int, bets []Bet) int {
-	winners := 0
-	for _, bet := range bets {
-		betNumber, err := strconv.Atoi(bet.Number)
-		if err == nil && betNumber == winnerNumber {
-			winners += 1
-		}
-	}
-	return winners
 }

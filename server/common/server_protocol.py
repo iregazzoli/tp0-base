@@ -101,11 +101,28 @@ class ServerProtocol:
         except Exception as e:
             logging.error(f"action: recv_lottery_confirmation | result: fail | error: {e}")
             return False
-        
-    def send_winner(self, client_sock, winner_number):
+
+    def send_winner(self, client_sock, winners):
         try:
-            winner_number_bytes = socket.htonl(winner_number)
-            client_sock.sendall(winner_number_bytes.to_bytes(4, 'big'))
-            logging.info(f"action: send_winner | result: success | number: {winner_number}")
+            num_winners = socket.htonl(len(winners))
+            client_sock.sendall(num_winners.to_bytes(4, 'big'))
+            
+            buffer = bytearray()
+            winners_info = [] # just for logging
+
+            for bet in winners:
+                winner_number_bytes = socket.htonl(bet.number)
+                buffer.extend(winner_number_bytes.to_bytes(4, 'big'))
+
+                winner_dni_bytes = socket.htonl(int(bet.document))  
+                buffer.extend(winner_dni_bytes.to_bytes(4, 'big'))
+
+                # Agregar la información del ganador al array
+                winners_info.append(f"{bet.document}-{bet.number}")
+
+            client_sock.sendall(buffer)
+
+            logging.info(f"action: send_winner | result: success | winners: {', '.join(winners_info)}")
         except Exception as e:
             logging.error(f"action: send_winner | result: fail | error: {e}")
+

@@ -10,27 +10,28 @@ class Server:
         self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._server_socket.bind(('', port))
         self._server_socket.listen(listen_backlog)
-        self._server_socket.settimeout(5)
+        self._server_socket.settimeout(15)
         self.running = True 
         self.protocol = ServerProtocol()
         self.clients_ready_for_draw = 0
-        self.client_sockets = []
-
+        self.client_sockets = {}    
         signal.signal(signal.SIGTERM, self.handle_shutdown_signal)
         signal.signal(signal.SIGINT, self.handle_shutdown_signal)
 
     def run(self):
         while self.running:
             if self.clients_ready_for_draw == 2:
-                winner_number = self.run_draw()
+                winners_by_agency = self.run_draw()
                 logging.info("action: sorteo | result: success") # CATEDRA
-                self.announce_winner(winner_number)
+                self.announce_winners(winners_by_agency)
                 self.close_client_sockets()
                 self.clients_ready_for_draw = 0 # Restart logic so it can run loterry again
 
             client_sock = self.__accept_new_connection()
             if client_sock: 
-                self.client_sockets.append(client_sock) #Since we don't handle clients in parallel
+                client_id_bytes = self.protocol.recv_exact(client_sock, 4)
+                client_id = int.from_bytes(client_id_bytes, byteorder='big')
+                self.client_sockets[client_id] = client_sock #Since we don't handle clients in parallel
                 self.__handle_client_connection(client_sock)
             
         self.shutdown()
@@ -92,32 +93,50 @@ class Server:
             logging.info(f'action: accept_connections | result: success | ip: {addr[0]}')
             return client_sock
         except socket.timeout:
-            # No connections within the timeout period
-            logging.info('action: accept_connections | result: timeout') #TODO REMOVE THIS LATER
             return None
         except BlockingIOError:
             # Other non-blocking accept exception
             return None
         
     def run_draw(self):
+        winners_by_agency = {}
+        
         for bet in load_bets():
             if has_won(bet):
-                logging.info(f"action: draw_completed | result: success | winner: {bet.number}") #TODO REMOVE LATER
-                return bet.number
+                agency_id = bet.agency  
+                if agency_id not in winners_by_agency:
+                    winners_by_agency[agency_id] = []
+                winners_by_agency[agency_id].append(bet)  
+                
+        return winners_by_agency
             
-    def announce_winner(self, winner_number):
-        for client_sock in self.client_sockets:
-            self.protocol.send_winner(client_sock, winner_number)
+    def announce_winners(self, winners_by_agency):
+        for client_id, client_sock in self.client_sockets.items():
+            if client_id in winners_by_agency:
+                winners = winners_by_agency[client_id]
+                self.protocol.send_winner(client_sock, winners)
 
     def close_client_sockets(self):
-        for client_sock in self.client_sockets:
+        for client_sock in self.client_sockets.values():
             try:
-                if client_sock.fileno() != -1:  # Avoid [Errno 9] Bad file descriptor
+                if client_sock.fileno() != -1:  
+                    logging.info(f"Attempting to close client socket: {client_sock.getpeername()} | FD: {client_sock.fileno()}")
+                    try:
+                        client_sock.shutdown(socket.SHUT_RDWR) 
+                    except OSError as e:
+                        logging.warning(f"Socket already closed for client: {client_sock.getpeername()} | {e}")
                     client_sock.close()
                     logging.info(f"action: close_client_socket | result: success | client: {client_sock.getpeername()}")
                 else:
                     logging.warning(f"action: close_client_socket | result: skipped | reason: socket already closed or invalid | client: {client_sock.getpeername()}")
+            except OSError as e:
+                if e.errno == 9: 
+                    logging.error(f"Socket already closed")
+                else:
+                    logging.error(f"Error closing client socket: {e}")
             except Exception as e:
-                logging.error(f"Error closing client socket: {e}")
-        # Just as a good practice
+                logging.error(f"Unexpected error closing client socket: {e}")
+        
         self.client_sockets.clear()
+
+

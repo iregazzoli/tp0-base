@@ -19,7 +19,7 @@ func (cp *ClientProtocol) htonl(value int) []byte {
 }
 
 func (cp *ClientProtocol) ntohl(b []byte) int {
-	return int(binary.BigEndian.Uint32(b))
+	return int(binary.LittleEndian.Uint32(b))
 }
 
 func (cp *ClientProtocol) sendAll(conn net.Conn, data []byte) error {
@@ -146,12 +146,36 @@ func (cp *ClientProtocol) startLottery(conn net.Conn) error {
 	}
 	return nil
 }
+func (cp *ClientProtocol) receiveWinners(conn net.Conn) ([][2]int, error) {
 
-// Function to receive the winning number from the server
-func (cp *ClientProtocol) receiveWinnerNumber(conn net.Conn) (int, error) {
-	var winnerNumberBytes [4]byte
-	if _, err := conn.Read(winnerNumberBytes[:]); err != nil {
-		return 0, fmt.Errorf("error receiving winner number: %v", err)
+	// (4 bytes)
+	var numWinnersBytes [4]byte
+	if _, err := conn.Read(numWinnersBytes[:]); err != nil {
+			return nil, fmt.Errorf("error receiving number of winners: %v", err)
 	}
-	return cp.ntohl(winnerNumberBytes[:]), nil
+	numWinners := cp.ntohl(numWinnersBytes[:])
+
+	winners := make([][2]int, 0, numWinners)
+
+	for i := 0; i < numWinners; i++ {
+			// (4 bytes)
+			var winnerNumberBytes [4]byte
+			if _, err := conn.Read(winnerNumberBytes[:]); err != nil {
+					return nil, fmt.Errorf("error receiving winner number: %v", err)
+			}
+			winnerNumber := cp.ntohl(winnerNumberBytes[:])
+
+			// (4 bytes) 
+			var winnerDniBytes [4]byte
+			if _, err := conn.Read(winnerDniBytes[:]); err != nil {
+					return nil, fmt.Errorf("error receiving winner DNI: %v", err)
+			}
+			winnerDni := cp.ntohl(winnerDniBytes[:])
+
+			winners = append(winners, [2]int{winnerNumber, winnerDni})
+	}
+
+	return winners, nil
 }
+
+
