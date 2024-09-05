@@ -178,3 +178,71 @@ Cada ejercicio deberá resolverse en una rama independiente con nombres siguiend
 Puden obtener un listado del último commit de cada rama ejecutando `git ls-remote`.
 
 Finalmente, se pide a los alumnos leer atentamente y **tener en cuenta** los criterios de corrección provistos [en el campus](https://campusgrado.fi.uba.ar/mod/page/view.php?id=73393).
+
+## Correr cada ejercicio
+
+### Ejercicio N°1:
+Para ejecutar el programa hay que correr `./generar-compose.sh <nombre-del-archivo> <numero-de-clientes>`
+
+### Ejercicio N°2:
+Para buildear el docker file correr `make docker-compose-up`
+
+### Ejercicio N°3:
+Primero asegurense de buildear la imagen del cliente dado que el script la utiliza usando:
+`docker buildx build --platform linux/amd64 -t client:latest -f client/Dockerfile .`
+Luego buildear el docker file correr `make docker-compose-up`
+Finalmente correr `./validar-echo-server.sh`
+
+### Ejercicio N°4:
+correr `make docker-compose-up`
+Usar `docker kill --signal SIGTERM <server / clienti>` para enviar sigterm
+
+### Ejercicio N°5:
+correr `make docker-compose-up`
+
+#### Protocolo usado:
+  El protocolo usado en este punto consiste en el envio de 4 bytes para el clientId, dni y numero de apuesta, luego 10 bytes para la fecha y por ultimo, para tanto el nombre como el apellido, se envian primero 4 bytes que representan el tamaño del campo y luego el campo en si, permitiendo de esta forma el envio de nombres y apellidos sin restringir los mismo a un tamaño maximo de caracteres. 
+  
+  Cada campo previo a ser enviado es convertido a bytes en formato Big Endian usando la funcion `htonl`, esto se hace para asegurar la compatibilidad entre sistemas.
+  Por ultimo para el envio de los campos se utiliza la funcion `sendAll`para evitar problemas de short write, en la misma se trackea la cantidad de bytes enviados, en caso de no poder enviarse todos, se vuelve a intentar enviar desde el ultimo byte enviado. Aclaracion no se manda byte por byte se intenta siempre mandar todos los bytes.
+
+  Analogamente en el servidor se hace la inversa, se recibe cada campo usando `recv_exac` para evitar short reads, la cual lee N bytes del socket, y trackea la cantidad de bytes recibidos, en caso de recibir menos de la cantidad esperada, vuelve a intentar leer la diferencia entre la cantidad esperada y lo leido.
+
+### Ejercicio N°6:
+correr `make docker-compose-up`
+
+#### Protocolo usado:
+  Al protocolo se le agrega el envio de batches, para hacerlo primero `sendBatches` fracciona todos las apuestas en batches, luego le envia al servidor la cantidad de batches (4 bytes), y comienza a enviar cada batch, cada batch es convertido a bytes en formato Big endian usando htonl, y se los envia usando una sola operacion de send para hacer mas eficiente el protocolo.
+
+### Ejercicio N°7:
+correr `make docker-compose-up`
+
+#### Protocolo usado:
+  Para este ejercicio se agrega en el protocolo del cliente la notificacion de que comienze la loteria, para esto se envia un simple byte el cual es recibido por el servidor. Una vez que el servidor recibe la confirmación de todos los clientes, procede a realizar el sorteo.
+
+  El servidor identifica las apuestas ganadoras por agencia, y envía los resultados de los ganadores a cada cliente asociado a su agencia. Una vez que el servidor recibe la confirmación de todos los clientes, procede a realizar el sorteo.
+
+  El servidor identifica las apuestas ganadoras por cliente, y envía los resultados de los ganadores a cada cliente asociado a su agencia.
+
+  El servidor envía primero 4 bytes que representan la cantidad de ganadores (en formato Big Endian usando htonl).
+  Luego, para cada ganador, se envían 8 bytes:
+  - 4 bytes para el DNI del ganador (en formato Big Endian).
+  - 4 bytes para el número de apuesta ganadora (en formato Big Endian).
+
+  El servidor hace un único envío `sendAll` para todos los ganadores de la agencia, agrupando la información en un buffer para evitar problemas de short write y hacer la transmisión más eficiente.
+
+  El cliente, después de haber enviado la confirmación de estar listo para el sorteo, espera la respuesta del servidor.
+  El cliente primero recibe 4 bytes que indican la cantidad de ganadores.
+
+  Luego, recibe los ganadores, en donde cada ganador es representado por dos valores de 4 bytes: el DNI y el número de apuesta.
+  Los ganadores son procesados y registrados en los logs, mostrando el número de apuesta y el DNI de cada ganador.
+
+### Ejercicio N°8:
+correr `make docker-compose-up`
+
+#### mecanismos de sincronización utilizados:
+- Locks: Utilizo locks para acceder a recursos compartidos entre threads, dichos recursos son: `clients_ready_for_draw` y `winners`, `clients_ready_for_draw` simboliza la cantidad de clientes que notificaron al server sobre que estan listos para que comienze la loteria, una vez que reciben sus ganadores cada thread decrementa el valor en 1. Para winners quiza no es necesario un lock dado que solo un thread (el del ultimo cliente que notifica al server para que arranque la loteria) es el que lo modifica, sin embargo por buenas practicas elijo usar un lock.
+
+- Events: Utilizo un event para coordinar la sincronización entre los procesos de los clientes, se podria haver usado una barrera pero event es mas flexible. Este evento es compartido por todos los procesos clientes y se utiliza para controlar cuándo se deben enviar los resultados del sorteo a los clientes. Todos los clientes "awaitean" el evento hasta que el ultimo cliente que confirma el inicio de la loteria notifica a todos y los libera.
+
+- Multiprocessing Manager: Esto sirver para lidiar con que cada thread tiene su propia memoria, si actualizase `clients_ready_for_draw` en un thread no se veria reflejado en los otros dado que modificaria la memoria local del thread.
