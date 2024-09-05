@@ -1,16 +1,13 @@
 package common
 
 import (
-	"bufio"
 	"fmt"
 	"net"
 	"time"
 	"os"
 	"strconv"
-	"encoding/binary"
 	"github.com/op/go-logging"
 	"encoding/csv"
-	"bytes"
 )
 
 type Bet struct {
@@ -68,6 +65,7 @@ type Client struct {
 	config ClientConfig
 	conn   net.Conn
 	shutdownChan <-chan struct{}
+	protocol     *ClientProtocol
 }
 
 // NewClient Initializes a new client receiving the configuration
@@ -76,6 +74,7 @@ func NewClient(config ClientConfig, shutdownChan <-chan struct{}) *Client {
 	client := &Client{
 		config: config,
 		shutdownChan: shutdownChan,
+		protocol:     &ClientProtocol{},
 	}
 	return client
 }
@@ -115,19 +114,19 @@ func (c *Client) StartClientLoop() {
 		return
 	}
 
-	err = SendBatches(c.conn, bets, maxBatchSize)
+	err = c.protocol.SendBatches(c.conn, bets, maxBatchSize)
 	if err != nil {
 		log.Errorf("action: send_bet | result: fail | client_id: %v | error: %v", c.config.ID, err)
 		return
 	}
 
-	err = startLottery(c.conn)
+	err = c.protocol.startLottery(c.conn)
 	if err != nil {
 		log.Errorf("action: start_lottery | result: fail | client_id: %v | error: %v", c.config.ID, err)
 		return
 	}
 
-	winnerNumber, err := receiveWinnerNumber(c.conn)
+	winnerNumber, err := c.protocol.receiveWinnerNumber(c.conn)
 	if err != nil {
 		log.Errorf("action: receive_winner_number | result: fail | client_id: %v | error: %v", c.config.ID, err)
 		return
@@ -146,155 +145,6 @@ func (c *Client) StartClientLoop() {
 			time.Sleep(c.config.LoopPeriod)
 		}
 	}
-}
-
-func htonl(value int) []byte {
-	var buf [4]byte
-	binary.BigEndian.PutUint32(buf[:], uint32(value))
-	return buf[:]
-}
-
-func ntohl(b []byte) int {
-	convertedValue := int(binary.LittleEndian.Uint32(b))
-	return convertedValue
-}
-
-func sendAll(conn net.Conn, data []byte) error {
-	totalBytesWritten := 0
-	for totalBytesWritten < len(data) {
-		n, err := conn.Write(data[totalBytesWritten:])
-		if err != nil {
-			return err
-		}
-		totalBytesWritten += n
-	}
-	return nil
-}
-
-func splitBetsIntoBatches(bets []Bet, maxBatchSize int) [][]Bet {
-	var batches [][]Bet
-	for i := 0; i < len(bets); i += maxBatchSize {
-			end := i + maxBatchSize
-			if end > len(bets) {
-					end = len(bets)
-			}
-			batches = append(batches, bets[i:end])
-	}
-	return batches
-}
-
-func SendBatches(conn net.Conn, bets []Bet, maxBatchSize int) error {
-	batches := splitBetsIntoBatches(bets, maxBatchSize)
-
-	// 4 bytes
-	numBatches := len(batches)
-	numBatchesBytes := htonl(numBatches)
-	if err := sendAll(conn, numBatchesBytes); err != nil {
-		return err
-	}
-
-	for _, batch := range batches {
-		if err := SendBatch(conn, batch); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
-
-func SendBatch(
-	conn net.Conn,
-	bets []Bet,
-) error {
-	var batchBuffer bytes.Buffer
-
-	numBets := len(bets)
-	numBetsBytes := htonl(numBets)
-	batchBuffer.Write(numBetsBytes)
-
-	for _, bet := range bets {
-		// Convert Id, DNI and Number to int
-		cliIDInt, err := strconv.Atoi(bet.CliID)
-		if err != nil {
-			return fmt.Errorf("error converting CLI_ID: %v", err)
-		}
-		dniInt, err := strconv.Atoi(bet.DNI)
-		if err != nil {
-			return fmt.Errorf("error converting DNI: %v", err)
-		}
-		numberInt, err := strconv.Atoi(bet.Number)
-		if err != nil {
-			return fmt.Errorf("error converting number: %v", err)
-		}
-		
-		// Convert fields to bytes and send them
-		// 4 bytes
-		cliIDBytes := htonl(cliIDInt)
-		batchBuffer.Write(cliIDBytes)
-
-		// send bytes of name + name
-		nameBytes := []byte(bet.Name)
-		nameLengthBytes := htonl(len(nameBytes))
-		batchBuffer.Write(nameLengthBytes)
-		batchBuffer.Write(nameBytes)
-
-		// send bytes of lastname + lastname
-		lastnameBytes := []byte(bet.Lastname)
-		lastnameLengthBytes := htonl(len(lastnameBytes))
-		batchBuffer.Write(lastnameLengthBytes)
-		batchBuffer.Write(lastnameBytes)
-		
-		// 4 bytes
-		dniBytes := htonl(dniInt)
-		batchBuffer.Write(dniBytes)
-
-		// 10 bytes
-		dateOfBirthBytes := []byte(bet.DateOfBirth)
-		batchBuffer.Write(dateOfBirthBytes)
-
-		// 4 bytes
-		numberBytes := htonl(numberInt)
-		batchBuffer.Write(numberBytes)
-	}
-
-	// Send whole batch in one send operation
-	if err := sendAll(conn, batchBuffer.Bytes()); err != nil {
-		return err
-	}
-
-	// Wait server answer
-	response, err := bufio.NewReader(conn).ReadString('\n')
-	if err != nil {
-		return fmt.Errorf("error receiving server response: %v", err)
-	}
-
-	if response != "SUCCESS\n" {
-		return fmt.Errorf("batch was not successful, server response: %v", response)
-	}
-
-	return nil
-}
-
-func startLottery(conn net.Conn) error {
-	readyByte := byte(1)
-	_, err := conn.Write([]byte{readyByte})
-	if err != nil {
-		return fmt.Errorf("error sending lottery ready byte: %v", err)
-	}
-	log.Infof("action: notify_end | result: success")
-	return nil
-}
-
-func receiveWinnerNumber(conn net.Conn) (int, error) {
-	var winnerNumberBytes [4]byte
-	if _, err := conn.Read(winnerNumberBytes[:]); err != nil {
-			return 0, fmt.Errorf("error receiving winner number: %v", err)
-	}
-
-	winnerNumber := ntohl(winnerNumberBytes[:])
-	
-	return winnerNumber, nil
 }
 
 func checkIfWinner(winnerNumber int, bets []Bet) int {
