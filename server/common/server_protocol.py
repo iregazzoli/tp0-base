@@ -1,5 +1,6 @@
 import logging
 from .utils import Bet
+import socket
 
 class ServerProtocol:
     def recv_exact(self, sock, num_bytes):
@@ -84,7 +85,7 @@ class ServerProtocol:
             return bets
 
         except ConnectionError as e:
-            logging.error(f"action: receive_message | result: fail | error: {e}")
+            logging.error(f"Protocol | action: receive_message | result: fail | error: {e}")
             return None
 
     def recv_lottery_confirmation(self, client_sock):
@@ -93,16 +94,32 @@ class ServerProtocol:
             if ready_byte and ready_byte[0] == 1:
                 return True
             else:
-                logging.error("action: recv_lottery_confirmation | result: fail | reason: invalid byte")
+                logging.error("Protocol | action: recv_lottery_confirmation | result: fail | reason: invalid byte")
                 return False
         except Exception as e:
-            logging.error(f"action: recv_lottery_confirmation | result: fail | error: {e}")
+            logging.error(f"Protocol | action: recv_lottery_confirmation | result: fail | error: {e}")
             return False
-        
-    def send_winner(self, client_sock, winner_number):
+
+    def send_winners(self, client_sock, client_id, winners):
         try:
-            winner_number_bytes = winner_number.to_bytes(4, 'big')
-            client_sock.sendall(winner_number_bytes)
-            logging.info(f"action: send_winner | result: success | number: {winner_number}")
+            num_winners = socket.htonl(len(winners))
+            client_sock.sendall(num_winners.to_bytes(4, 'big'))
+            
+            buffer = bytearray()
+            winners_info = [] # just for logging
+
+            for bet in winners:
+                winner_number_bytes = socket.htonl(bet.number)
+                buffer.extend(winner_number_bytes.to_bytes(4, 'big'))
+
+                winner_dni_bytes = socket.htonl(int(bet.document))  
+                buffer.extend(winner_dni_bytes.to_bytes(4, 'big'))
+
+                # Agregar la información del ganador al array
+                winners_info.append(f"{bet.document}-{bet.number}")
+
+            client_sock.sendall(buffer)
+
+            logging.info(f"Protocol | action: send_winner | result: success | client: {client_id}, winners: {', '.join(winners_info)}")
         except Exception as e:
-            logging.error(f"action: send_winner | result: fail | error: {e}")
+            logging.error(f"Protocol | action: send_winner | result: fail | error: {e}")

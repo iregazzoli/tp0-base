@@ -16,7 +16,7 @@ class Server:
         self.protocol = ServerProtocol()
         manager = multiprocessing.Manager()
         self.clients_ready_for_draw = manager.Value('i', 0)
-        self.winner_number = manager.Value('i', None)  
+        self.winners = manager.dict()
         self.client_sockets = []
         self.ready_event = multiprocessing.Event()
         self.lock = multiprocessing.Lock()
@@ -63,36 +63,40 @@ class Server:
 
     def __handle_client_connection(self, client_sock):
         try:
-            addr = client_sock.getpeername()
-            logging.info(f'action: accept_connection | result: success | ip: {addr[0]}')
+            client_id_bytes = self.protocol.recv_exact(client_sock, 4)
+            client_id = int.from_bytes(client_id_bytes, byteorder='big')
+
+            logging.info(f'action: accept_connection | result: success | client: {client_id}')
 
             all_batches = self.protocol.recv_batches(client_sock)
-
             amount_of_bets = 0
 
             for bets in all_batches:
                 amount_of_bets += len(bets)
                 store_bets(bets)
 
-            logging.info(f"action: apuesta_recibida | result: success | cantidad: {amount_of_bets}")
+            logging.info(f"action: apuesta_recibida | result: success | client: {client_id} cantidad: {amount_of_bets}")
 
             lottery_confirmation = self.protocol.recv_lottery_confirmation(client_sock)
             if lottery_confirmation:
-                logging.info(f'action: lottery_confirmation | result: success | client: {addr[0]}')
+                logging.info(f'action: lottery_confirmation | result: success | client: {client_id}')
                 with self.lock:
                     self.clients_ready_for_draw.value += 1
                     if self.clients_ready_for_draw.value == 2:
-                        self.winner_number.value = self.run_draw()
+                        winners_by_agency = self.run_draw()
+                        for key, value in winners_by_agency.items():
+                            self.winners[key] = value
+
                         self.ready_event.set()
 
             self.ready_event.wait()  # Wait till all clients are ready to start the lottery
-            self.protocol.send_winner(client_sock, self.winner_number.value)
-            
+
+            if client_id in self.winners:
+                self.protocol.send_winners(client_sock, client_id, self.winners[client_id])  
             with self.lock:
                 self.clients_ready_for_draw.value -= 1
                 if self.clients_ready_for_draw.value == 0:
-                    # Reiniciar lógica para que pueda ejecutarse nuevamente
-                    self.winner_number.value = None
+                    self.winners = {}
                     self.ready_event.clear()
 
         except ValueError as e:
@@ -100,24 +104,40 @@ class Server:
         except OSError as e:
             logging.error(f"action: receive_message | result: fail | error: {e}")
         finally:
-            logging.info(f"Closing connection with {addr[0]}")
+            logging.info(f"Closing connection with client {client_id}")
             client_sock.close()
 
     def run_draw(self):
+        winners_by_agency = {}
+        
         for bet in load_bets():
             if has_won(bet):
-                logging.info(f"action: draw_completed | result: success | winner: {bet.number}")
-                return bet.number
+                agency_id = int(bet.agency) 
+                if agency_id not in winners_by_agency:
+                    winners_by_agency[agency_id] = []
+                winners_by_agency[agency_id].append(bet)  
+                
+        return winners_by_agency
 
     def close_client_sockets(self):
-        # Clear client sockets after closing
         for client_sock in self.client_sockets:
             try:
-                if client_sock.fileno() != -1:  # Avoid [Errno 9] Bad file descriptor
+                if client_sock.fileno() != -1:  
+                    logging.info(f"Attempting to close client socket: {client_sock.getpeername()} | FD: {client_sock.fileno()}")
+                    try:
+                        client_sock.shutdown(socket.SHUT_RDWR) 
+                    except OSError as e:
+                        logging.warning(f"Socket already closed for client: {client_sock.getpeername()} | {e}")
                     client_sock.close()
                     logging.info(f"action: close_client_socket | result: success | client: {client_sock.getpeername()}")
                 else:
                     logging.warning(f"action: close_client_socket | result: skipped | reason: socket already closed or invalid | client: {client_sock.getpeername()}")
+            except OSError as e:
+                if e.errno == 9: 
+                    logging.error(f"Socket already closed")
+                else:
+                    logging.error(f"Error closing client socket: {e}")
             except Exception as e:
-                logging.error(f"Error closing client socket: {e}")
+                logging.error(f"Unexpected error closing client socket: {e}")
+        
         self.client_sockets.clear()
