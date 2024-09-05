@@ -12,18 +12,18 @@ class Server:
         self._server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self._server_socket.bind(('', port))
         self._server_socket.listen(listen_backlog)
-        self.running = True
+        self.running = multiprocessing.Value('b', True)
         self.protocol = ServerProtocol()
         manager = multiprocessing.Manager()
         self.clients_ready_for_draw = manager.Value('i', 0)
         self.winners = manager.dict()
-        self.client_sockets = []
+        self.client_sockets = manager.list()
         self.ready_event = multiprocessing.Event()
         self.lock = multiprocessing.Lock()
 
     def run(self):
-        signal_thread = threading.Thread(target=self.accept_connections)
-        signal_thread.start()
+        signal_process = multiprocessing.Process(target=self.accept_connections)
+        signal_process.start()
 
         self.wait_for_signals()
         self.shutdown()
@@ -36,7 +36,7 @@ class Server:
 
     def handle_shutdown_signal(self, signum, frame):
         logging.info("action: shutdown | starting closure of server.")
-        self.running = False
+        self.running.value = False
 
     def shutdown(self):
         # Clean up server resources
