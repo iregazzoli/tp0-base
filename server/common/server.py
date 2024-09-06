@@ -63,6 +63,7 @@ class Server:
 
             for bets in all_batches:
                 amount_of_bets += len(bets)
+                #No lock needed since there is no concurrency.
                 store_bets(bets)
 
             logging.info(f"action: apuesta_recibida | result: success | cantidad: {amount_of_bets}") 

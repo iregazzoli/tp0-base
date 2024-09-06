@@ -3,6 +3,8 @@ services:
   server:
     container_name: server
     image: server:latest
+    ports:
+      - "8081:80"
     entrypoint: python3 /main.py
     environment:
       - PYTHONUNBUFFERED=1
@@ -41,7 +43,52 @@ services:
       - server
     volumes:
       - ./client/config.yaml:/config.yaml
-      - ./client/dataset:/dataset 
+      - ./client/dataset:/dataset
+
+  client3:
+    container_name: client3
+    image: client:latest
+    entrypoint: /client
+    environment:
+      - CLI_ID=3
+      - CLI_LOG_LEVEL=DEBUG
+    networks:
+      - testing_net
+    depends_on:
+      - server
+    volumes:
+      - ./client/config.yaml:/config.yaml
+      - ./client/dataset:/dataset
+
+  client4:
+    container_name: client4
+    image: client:latest
+    entrypoint: /client
+    environment:
+      - CLI_ID=4
+      - CLI_LOG_LEVEL=DEBUG
+    networks:
+      - testing_net
+    depends_on:
+      - server
+    volumes:
+      - ./client/config.yaml:/config.yaml
+      - ./client/dataset:/dataset
+
+  client5:
+    container_name: client5
+    image: client:latest
+    entrypoint: /client
+    environment:
+      - CLI_ID=5
+      - CLI_LOG_LEVEL=DEBUG
+    networks:
+      - testing_net
+    depends_on:
+      - server
+    volumes:
+      - ./client/config.yaml:/config.yaml
+      - ./client/dataset:/dataset
 
 networks:
   testing_net:

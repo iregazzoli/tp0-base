@@ -4,6 +4,7 @@ def generate_clients(filename, num_clients):
     with open(filename, 'a') as f:
         for i in range(1, int(num_clients) + 1):
             f.write(f"  client{i}:\n")
+            f.write(f"    container_name: client{i}\n")
             f.write(f"    image: client:latest\n")
             f.write(f"    entrypoint: /client\n")
             f.write(f"    environment:\n")
@@ -16,6 +17,7 @@ def generate_clients(filename, num_clients):
             f.write(f"    volumes:\n")
             f.write(f"      - ./client/config.yaml:/config.yaml\n")
             f.write(f"      - ./client/dataset:/dataset\n")
+            f.write(f"\n")
 
 if __name__ == "__main__":
     output_file = sys.argv[1]
