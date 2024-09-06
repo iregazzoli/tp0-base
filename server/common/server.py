@@ -78,7 +78,7 @@ class Server:
                 logging.info(f'action: lottery_confirmation | result: success | client: {client_id}')
                 with self.lock:
                     self.clients_ready_for_draw.value += 1
-                    if self.clients_ready_for_draw.value == 2:
+                    if self.clients_ready_for_draw.value == 5:
                         winners_by_agency = self.run_draw()
                         for key, value in winners_by_agency.items():
                             self.winners[key] = value
