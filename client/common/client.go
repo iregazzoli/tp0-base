@@ -117,6 +117,8 @@ func (c *Client) StartClientLoop() {
 			return
 	}
 
+	log.Infof("HERE")
+
 	winners, err := c.protocol.receiveWinners(c.conn)
 	if err != nil {
 			log.Errorf("action: receive_winner_number | result: fail | client_id: %v | error: %v", c.config.ID, err)

@@ -134,15 +134,27 @@ func (cp *ClientProtocol) startLottery(conn net.Conn) error {
 		return fmt.Errorf("error sending lottery ready byte: %v", err)
 	}
 
-	var confirmByte [1]byte
-	if _, err := conn.Read(confirmByte[:]); err != nil {
-		return fmt.Errorf("error receiving confirmation from server: %v", err)
-	}
+	// var confirmByte [1]byte
+	// if _, err := conn.Read(confirmByte[:]); err != nil {
+	// 	return fmt.Errorf("error receiving confirmation from server: %v", err)
+	// }
 
 	return nil
 }
 
 func (cp *ClientProtocol) receiveWinners(conn net.Conn) ([][2]int, error) {
+	var a [4]byte
+	if _, err := conn.Read(numWinnersBytes[:]); err != nil {
+		return nil, fmt.Errorf("error receiving number of winners: %v", err)
+	}
+	var b [4]byte
+	if _, err := conn.Read(numWinnersBytes[:]); err != nil {
+		return nil, fmt.Errorf("error receiving number of winners: %v", err)
+	}
+	var c [4]byte
+	if _, err := conn.Read(numWinnersBytes[:]); err != nil {
+		return nil, fmt.Errorf("error receiving number of winners: %v", err)
+	}
 	var numWinnersBytes [4]byte
 	if _, err := conn.Read(numWinnersBytes[:]); err != nil {
 		return nil, fmt.Errorf("error receiving number of winners: %v", err)
@@ -167,9 +179,11 @@ func (cp *ClientProtocol) receiveWinners(conn net.Conn) ([][2]int, error) {
 		winnerDni := cp.ntohl(winnerDniBytes[:])
 		log.Infof("Received winner DNI: %d", winnerDni)
 
+		// Agregar el ganador a la lista
 		winners = append(winners, [2]int{winnerNumber, winnerDni})
 	}
 
+	log.Infof("Finished receiving winners")
 	return winners, nil
 }
 
