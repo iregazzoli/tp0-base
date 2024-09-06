@@ -34,37 +34,6 @@ func (cp *ClientProtocol) sendAll(conn net.Conn, data []byte) error {
 	return nil
 }
 
-func (cp *ClientProtocol) splitBetsIntoBatches(bets []Bet, maxBatchSize int) [][]Bet {
-	var batches [][]Bet
-	for i := 0; i < len(bets); i += maxBatchSize {
-			end := i + maxBatchSize
-			if end > len(bets) {
-					end = len(bets)
-			}
-			batches = append(batches, bets[i:end])
-	}
-	return batches
-}
-
-func (cp *ClientProtocol) SendBatches(conn net.Conn, bets []Bet, maxBatchSize int) error {
-	batches := cp.splitBetsIntoBatches(bets, maxBatchSize)
-
-	// 4 bytes
-	numBatches := len(batches)
-	numBatchesBytes := cp.htonl(numBatches)
-	if err := cp.sendAll(conn, numBatchesBytes); err != nil {
-		return err
-	}
-
-	for _, batch := range batches {
-		if err := cp.SendBatch(conn, batch); err != nil {
-			return err
-		}
-	}
-
-	return nil
-}
-
 func (cp *ClientProtocol) SendBatch(
 	conn net.Conn,
 	bets []Bet,
@@ -134,32 +103,22 @@ func (cp *ClientProtocol) startLottery(conn net.Conn) error {
 		return fmt.Errorf("error sending lottery ready byte: %v", err)
 	}
 
-	// var confirmByte [1]byte
-	// if _, err := conn.Read(confirmByte[:]); err != nil {
-	// 	return fmt.Errorf("error receiving confirmation from server: %v", err)
-	// }
+	var confirmByte [1]byte
+	if _, err := conn.Read(confirmByte[:]); err != nil {
+		return fmt.Errorf("error receiving confirmation from server: %v", err)
+	}
+
+	log.Infof("Received lottery confirmation %v", confirmByte)
 
 	return nil
 }
 
 func (cp *ClientProtocol) receiveWinners(conn net.Conn) ([][2]int, error) {
-	var a [4]byte
-	if _, err := conn.Read(numWinnersBytes[:]); err != nil {
-		return nil, fmt.Errorf("error receiving number of winners: %v", err)
-	}
-	var b [4]byte
-	if _, err := conn.Read(numWinnersBytes[:]); err != nil {
-		return nil, fmt.Errorf("error receiving number of winners: %v", err)
-	}
-	var c [4]byte
-	if _, err := conn.Read(numWinnersBytes[:]); err != nil {
-		return nil, fmt.Errorf("error receiving number of winners: %v", err)
-	}
 	var numWinnersBytes [4]byte
 	if _, err := conn.Read(numWinnersBytes[:]); err != nil {
 		return nil, fmt.Errorf("error receiving number of winners: %v", err)
 	}
-	numWinners := int(binary.BigEndian.Uint32(numWinnersBytes[:]))
+	numWinners := cp.ntohl(numWinnersBytes[:])
 	log.Infof("Received number of winners: %d", numWinners)
 
 	winners := make([][2]int, 0, numWinners)

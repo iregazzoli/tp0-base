@@ -22,7 +22,6 @@ class ServerProtocol:
 
                 bets = self.recv_batch(client_sock)
                 if not bets:
-                    client_sock.sendall(b"FAIL\n")
                     raise ValueError("Batch processing failed.")
 
                 store_bets(bets)
@@ -34,7 +33,7 @@ class ServerProtocol:
                     break
                 elif batch_signal != b'\x01':
                     raise ValueError("Invalid batch signal received")
-            client_sock.sendall(b"SUCCESS\n")
+            client_sock.sendall(b"SUCCESS")
 
             return total_bets_received  
 

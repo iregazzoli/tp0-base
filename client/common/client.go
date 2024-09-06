@@ -117,15 +117,11 @@ func (c *Client) StartClientLoop() {
 			return
 	}
 
-	log.Infof("HERE")
-
 	winners, err := c.protocol.receiveWinners(c.conn)
 	if err != nil {
 			log.Errorf("action: receive_winner_number | result: fail | client_id: %v | error: %v", c.config.ID, err)
 			return
 	}
-
-	log.Infof("HERE")
 
 	log.Infof("action: consulta_ganadores | result: success | cant_ganadores: %v", len(winners))
 
@@ -155,7 +151,7 @@ func (c *Client) SendBatches(clientID string, MaxBatchSize int) error {
 
 	reader := csv.NewReader(file)
 	var extraBet *Bet
-	const maxBatchLength = 8193 
+	const maxBatchLength = 8193
 
 	for {
 		bets := []Bet{}
@@ -169,19 +165,27 @@ func (c *Client) SendBatches(clientID string, MaxBatchSize int) error {
 
 		for len(bets) < MaxBatchSize {
 			record, err := reader.Read()
+
 			if err == io.EOF {
 				if len(bets) > 0 {
 					err = c.protocol.SendBatch(c.conn, bets)
-
 					if err != nil {
 						return fmt.Errorf("error sending batch: %v", err)
 					}
 				}
+
 				if _, err := c.conn.Write([]byte{0}); err != nil {
 					return fmt.Errorf("error sending last batch confirmation: %v", err)
 				}
 				log.Infof("Sent last batch signal")
-				return nil 
+
+				if err := c.waitForSuccess(); err != nil {
+					return fmt.Errorf("error receiving SUCCESS: %v", err)
+				}
+
+				log.Infof("SUCESS RECV")
+
+				return nil
 			}
 
 			if err != nil {
@@ -205,22 +209,31 @@ func (c *Client) SendBatches(clientID string, MaxBatchSize int) error {
 
 			batchSize += betSize
 			bets = append(bets, newBet)
+
+			if len(bets) == MaxBatchSize || batchSize+betSize >= maxBatchLength {
+				err = c.protocol.SendBatch(c.conn, bets)
+				if err != nil {
+					return fmt.Errorf("error sending batch: %v", err)
+				}
+
+				if _, err := c.conn.Write([]byte{1}); err != nil {
+					return fmt.Errorf("error sending batch continuation signal: %v", err)
+				}
+
+				bets = []Bet{}
+				batchSize = 0
+			}
 		}
-
-		err = c.protocol.SendBatch(c.conn, bets)
-		if err != nil {
-			return fmt.Errorf("error sending batch: %v", err)
-		}
-
-		bets = []Bet{}  
-
-		if _, err := c.conn.Write([]byte{1}); err != nil {
-			return fmt.Errorf("error sending batch continuation signal: %v", err)
-		}
-
 	}
 }
 
+func (c *Client) waitForSuccess() error {
+	response := make([]byte, 7) // Recibe 7 bytes sin verificar contenido
+	if _, err := c.conn.Read(response); err != nil {
+			return fmt.Errorf("error reading SUCCESS response: %v", err)
+	}
+	return nil
+}
 
 func (b *Bet) toBytes(clientID string) []byte {
 	cliIDBytes := []byte(clientID)
