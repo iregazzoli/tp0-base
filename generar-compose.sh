@@ -10,8 +10,10 @@ fi
 OUTPUT_FILE=$1
 NUM_CLIENTS=$2
 
-echo "services:"                                 > $OUTPUT_FILE
+echo "name: tp0"                                 > $OUTPUT_FILE
+echo "services:"                                >> $OUTPUT_FILE
 echo "  server:"                                >> $OUTPUT_FILE
+echo "    container_name: server"               >> $OUTPUT_FILE
 echo "    image: server:latest"                 >> $OUTPUT_FILE
 echo "    ports:"                               >> $OUTPUT_FILE
 echo "      - \"8081:80\""                      >> $OUTPUT_FILE
@@ -23,7 +25,6 @@ echo "    networks:"                            >> $OUTPUT_FILE
 echo "      - testing_net"                      >> $OUTPUT_FILE
 echo "    volumes:"                             >> $OUTPUT_FILE
 echo "      - ./server/config.ini:/config.ini"  >> $OUTPUT_FILE
-echo "      - ./server/common:/common"          >> $OUTPUT_FILE
 echo ""                                         >> $OUTPUT_FILE
 
 python3 utils/create_clients.py $OUTPUT_FILE $NUM_CLIENTS
