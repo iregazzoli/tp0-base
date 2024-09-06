@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net"
 	"strconv"
-	"bufio"
 )
 
 type ClientProtocol struct{}
@@ -125,16 +124,6 @@ func (cp *ClientProtocol) SendBatch(
 		return err
 	}
 
-	// Wait server answer
-	response, err := bufio.NewReader(conn).ReadString('\n')
-	if err != nil {
-		return fmt.Errorf("error receiving server response: %v", err)
-	}
-
-	if response != "SUCCESS\n" {
-		return fmt.Errorf("batch was not successful, server response: %v", response)
-	}
-
 	return nil
 }
 
@@ -144,36 +133,43 @@ func (cp *ClientProtocol) startLottery(conn net.Conn) error {
 	if err := cp.sendAll(conn, []byte{readyByte}); err != nil {
 		return fmt.Errorf("error sending lottery ready byte: %v", err)
 	}
+
+	var confirmByte [1]byte
+	if _, err := conn.Read(confirmByte[:]); err != nil {
+		return fmt.Errorf("error receiving confirmation from server: %v", err)
+	}
+
 	return nil
 }
-func (cp *ClientProtocol) receiveWinners(conn net.Conn) ([][2]int, error) {
 
-	// (4 bytes)
+func (cp *ClientProtocol) receiveWinners(conn net.Conn) ([][2]int, error) {
 	var numWinnersBytes [4]byte
 	if _, err := conn.Read(numWinnersBytes[:]); err != nil {
-			return nil, fmt.Errorf("error receiving number of winners: %v", err)
+		return nil, fmt.Errorf("error receiving number of winners: %v", err)
 	}
-	numWinners := cp.ntohl(numWinnersBytes[:])
+	numWinners := int(binary.BigEndian.Uint32(numWinnersBytes[:]))
+	log.Infof("Received number of winners: %d", numWinners)
 
 	winners := make([][2]int, 0, numWinners)
 
 	for i := 0; i < numWinners; i++ {
-			// (4 bytes)
-			var winnerNumberBytes [4]byte
-			if _, err := conn.Read(winnerNumberBytes[:]); err != nil {
-					return nil, fmt.Errorf("error receiving winner number: %v", err)
-			}
-			winnerNumber := cp.ntohl(winnerNumberBytes[:])
+		var winnerNumberBytes [4]byte
+		if _, err := conn.Read(winnerNumberBytes[:]); err != nil {
+			return nil, fmt.Errorf("error receiving winner number: %v", err)
+		}
+		winnerNumber := cp.ntohl(winnerNumberBytes[:])
+		log.Infof("Received winner number: %d", winnerNumber)
 
-			// (4 bytes) 
-			var winnerDniBytes [4]byte
-			if _, err := conn.Read(winnerDniBytes[:]); err != nil {
-					return nil, fmt.Errorf("error receiving winner DNI: %v", err)
-			}
-			winnerDni := cp.ntohl(winnerDniBytes[:])
+		var winnerDniBytes [4]byte
+		if _, err := conn.Read(winnerDniBytes[:]); err != nil {
+			return nil, fmt.Errorf("error receiving winner DNI: %v", err)
+		}
+		winnerDni := cp.ntohl(winnerDniBytes[:])
+		log.Infof("Received winner DNI: %d", winnerDni)
 
-			winners = append(winners, [2]int{winnerNumber, winnerDni})
+		winners = append(winners, [2]int{winnerNumber, winnerDni})
 	}
 
 	return winners, nil
 }
+

@@ -68,22 +68,17 @@ class Server:
 
             logging.info(f'action: accept_connection | result: success | client: {client_id}')
 
-            all_batches = self.protocol.recv_batches(client_sock)
-            amount_of_bets = 0
+            with self.lock: 
+                total_bets = self.protocol.recv_batches(client_sock)
 
-            for bets in all_batches:
-                amount_of_bets += len(bets)
-                with self.lock: 
-                    store_bets(bets)
-
-            logging.info(f"action: apuesta_recibida | result: success | client: {client_id} cantidad: {amount_of_bets}")
+            logging.info(f"action: apuesta_recibida | result: success | client: {client_id} cantidad: {total_bets}")
 
             lottery_confirmation = self.protocol.recv_lottery_confirmation(client_sock)
             if lottery_confirmation:
                 logging.info(f'action: lottery_confirmation | result: success | client: {client_id}')
                 with self.lock:
                     self.clients_ready_for_draw.value += 1
-                    if self.clients_ready_for_draw.value == 5:
+                    if self.clients_ready_for_draw.value == 2:
                         winners_by_agency = self.run_draw()
                         for key, value in winners_by_agency.items():
                             self.winners[key] = value
@@ -141,4 +136,6 @@ class Server:
             except Exception as e:
                 logging.error(f"Unexpected error closing client socket: {e}")
         
-        self.client_sockets.clear()
+        while len(self.client_sockets) > 0:
+            self.client_sockets.pop()
+

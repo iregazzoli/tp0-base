@@ -1,5 +1,5 @@
 import logging
-from .utils import Bet
+from .utils import *
 import socket
 
 class ServerProtocol:
@@ -17,25 +17,32 @@ class ServerProtocol:
 
     def recv_batches(self, client_sock):
         try:
-            # (4 bytes)
-            num_batches_bytes = self.recv_exact(client_sock, 4)
-            num_batches = int.from_bytes(num_batches_bytes, byteorder='big')
+            total_bets_received = 0  
+            while True:
 
-            all_batches = []  # Array of array of bets
-
-            for _ in range(num_batches):
-                bets = self.recv_batch(client_sock)  # array of bets
+                bets = self.recv_batch(client_sock)
                 if not bets:
                     client_sock.sendall(b"FAIL\n")
                     raise ValueError("Batch processing failed.")
-                
-                all_batches.append(bets)
-                client_sock.sendall(b"SUCCESS\n")
-            return all_batches
+
+                store_bets(bets)
+
+                total_bets_received += len(bets)
+
+                batch_signal = client_sock.recv(1)
+                if batch_signal == b'\x00':  
+                    break
+                elif batch_signal != b'\x01':
+                    raise ValueError("Invalid batch signal received")
+            client_sock.sendall(b"SUCCESS\n")
+
+            return total_bets_received  
 
         except Exception as e:
             logging.error(f"action: recv_batches | result: fail | error: {e}")
-            return []
+            return 0 
+
+
 
     def recv_batch(self, client_sock):
         try:
@@ -72,7 +79,6 @@ class ServerProtocol:
                 # bet number (4 bytes)
                 number_bytes = self.recv_exact(client_sock, 4)
                 number = int.from_bytes(number_bytes, byteorder='big')
-
                 bet = Bet(
                     agency=str(cli_id),
                     first_name=name,
@@ -82,6 +88,7 @@ class ServerProtocol:
                     number=str(number)
                 )
                 bets.append(bet)
+
             return bets
 
         except ConnectionError as e:
@@ -102,6 +109,9 @@ class ServerProtocol:
 
     def send_winners(self, client_sock, client_id, winners):
         try:
+            client_sock.sendall(b'\x01')
+
+            logging.info(f"{client_id} Sending LEN: {len(winners)}")
             num_winners = socket.htonl(len(winners))
             client_sock.sendall(num_winners.to_bytes(4, 'big'))
             
@@ -109,13 +119,14 @@ class ServerProtocol:
             winners_info = [] # just for logging
 
             for bet in winners:
+                logging.info(f"{client_id} Sending NUM: {bet.number}")
                 winner_number_bytes = socket.htonl(bet.number)
                 buffer.extend(winner_number_bytes.to_bytes(4, 'big'))
 
+                logging.info(f"{client_id} Sending DNI: {bet.document}")
                 winner_dni_bytes = socket.htonl(int(bet.document))  
                 buffer.extend(winner_dni_bytes.to_bytes(4, 'big'))
 
-                # Agregar la información del ganador al array
                 winners_info.append(f"{bet.document}-{bet.number}")
 
             client_sock.sendall(buffer)

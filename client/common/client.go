@@ -8,7 +8,10 @@ import (
 	"github.com/op/go-logging"
 	"encoding/csv"
 	"strconv"
+	"io"
 )
+
+const MaxBatchSizeBytes = 8192 // 8KB
 
 type Bet struct {
 	CliID       string
@@ -17,36 +20,6 @@ type Bet struct {
 	Lastname    string
 	DateOfBirth string
 	Number      string
-}
-
-func LoadBetsFromCSV(clientID string) ([]Bet, error) {
-	filename := fmt.Sprintf("/dataset/agency-%s.csv", clientID)
-	file, err := os.Open(filename)
-	if err != nil {
-		return nil, fmt.Errorf("error opening file: %v", err)
-	}
-	defer file.Close()
-
-	reader := csv.NewReader(file)
-	records, err := reader.ReadAll()
-	if err != nil {
-		return nil, fmt.Errorf("error reading CSV: %v", err)
-	}
-
-	var bets []Bet
-	for _, record := range records {
-		bet := Bet{
-			CliID:       clientID,
-			Name:        record[0],
-			Lastname:    record[1],
-			DNI:    		 record[2],
-			DateOfBirth: record[3],
-			Number:      record[4],
-		}
-		bets = append(bets, bet)
-	}
-
-	return bets, nil
 }
 
 var log = logging.MustGetLogger("log")
@@ -130,18 +103,12 @@ func (c *Client) StartClientLoop() {
 	defer c.conn.Close()
 
 	id := os.Getenv("CLI_ID")
-	maxBatchSize := c.config.MaxBatchSize
+	MaxBatchSize := c.config.MaxBatchSize
 
-	bets, err := LoadBetsFromCSV(id)
+	err = c.SendBatches(id, MaxBatchSize)
 	if err != nil {
-			log.Errorf("action: load_bets | result: fail | client_id: %v | error: %v", c.config.ID, err)
-			return
-	}
-
-	err = c.protocol.SendBatches(c.conn, bets, maxBatchSize)
-	if err != nil {
-			log.Errorf("action: send_bet | result: fail | client_id: %v | error: %v", c.config.ID, err)
-			return
+		log.Errorf("action: send_batches | result: fail | client_id: %v | error: %v", c.config.ID, err)
+		return
 	}
 
 	err = c.protocol.startLottery(c.conn)
@@ -155,6 +122,8 @@ func (c *Client) StartClientLoop() {
 			log.Errorf("action: receive_winner_number | result: fail | client_id: %v | error: %v", c.config.ID, err)
 			return
 	}
+
+	log.Infof("HERE")
 
 	log.Infof("action: consulta_ganadores | result: success | cant_ganadores: %v", len(winners))
 
@@ -172,4 +141,98 @@ func (c *Client) StartClientLoop() {
 					time.Sleep(c.config.LoopPeriod)
 			}
 	}
+}
+
+func (c *Client) SendBatches(clientID string, MaxBatchSize int) error {
+	filename := fmt.Sprintf("/dataset/agency-%s.csv", clientID)
+	file, err := os.Open(filename)
+	if err != nil {
+		return fmt.Errorf("error opening file: %v", err)
+	}
+	defer file.Close()
+
+	reader := csv.NewReader(file)
+	var extraBet *Bet
+	const maxBatchLength = 8193 
+
+	for {
+		bets := []Bet{}
+		batchSize := 0
+
+		if extraBet != nil {
+			bets = append(bets, *extraBet)
+			batchSize += len(extraBet.toBytes(clientID))
+			extraBet = nil
+		}
+
+		for len(bets) < MaxBatchSize {
+			record, err := reader.Read()
+			if err == io.EOF {
+				if len(bets) > 0 {
+					err = c.protocol.SendBatch(c.conn, bets)
+
+					if err != nil {
+						return fmt.Errorf("error sending batch: %v", err)
+					}
+				}
+				if _, err := c.conn.Write([]byte{0}); err != nil {
+					return fmt.Errorf("error sending last batch confirmation: %v", err)
+				}
+				log.Infof("Sent last batch signal")
+				return nil 
+			}
+
+			if err != nil {
+				return fmt.Errorf("error reading CSV: %v", err)
+			}
+
+			newBet := Bet{
+				CliID:       clientID,
+				Name:        record[0],
+				Lastname:    record[1],
+				DNI:         record[2],
+				DateOfBirth: record[3],
+				Number:      record[4],
+			}
+
+			betSize := len(newBet.toBytes(clientID))
+			if batchSize+betSize > maxBatchLength {
+				extraBet = &newBet
+				break
+			}
+
+			batchSize += betSize
+			bets = append(bets, newBet)
+		}
+
+		err = c.protocol.SendBatch(c.conn, bets)
+		if err != nil {
+			return fmt.Errorf("error sending batch: %v", err)
+		}
+
+		bets = []Bet{}  
+
+		if _, err := c.conn.Write([]byte{1}); err != nil {
+			return fmt.Errorf("error sending batch continuation signal: %v", err)
+		}
+
+	}
+}
+
+
+func (b *Bet) toBytes(clientID string) []byte {
+	cliIDBytes := []byte(clientID)
+	nameBytes := []byte(b.Name)
+	lastnameBytes := []byte(b.Lastname)
+	dniBytes := []byte(b.DNI)
+	dateOfBirthBytes := []byte(b.DateOfBirth)
+	numberBytes := []byte(b.Number)
+
+	result := append(cliIDBytes, nameBytes...)
+	result = append(result, lastnameBytes...)
+	result = append(result, dniBytes...)
+	result = append(result, dateOfBirthBytes...)
+	result = append(result, numberBytes...)
+
+	return result
 }
