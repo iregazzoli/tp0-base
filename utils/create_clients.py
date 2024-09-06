@@ -8,7 +8,7 @@ def generate_clients(filename, num_clients):
             f.write(f"    image: client:latest\n")
             f.write(f"    entrypoint: /client\n")
             f.write(f"    environment:\n")
-            f.write(f"      - CLIENT_ID={i}\n")
+            f.write(f"      - CLI_ID={i}\n")
             f.write(f"      - CLI_LOG_LEVEL=DEBUG\n")
             f.write(f"    networks:\n")
             f.write(f"      - testing_net\n")
