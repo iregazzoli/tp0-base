@@ -14,7 +14,9 @@ def generate_clients(filename, num_clients):
             f.write(f"      - testing_net\n")
             f.write(f"    depends_on:\n")
             f.write(f"      - server\n")
-            f.write("\n")  # Blank line for readability
+            f.write(f"    volumes:\n")
+            f.write(f"      - ./client/config.yaml:/config.yaml\n")
+            f.write("\n")
 
 if __name__ == "__main__":
     if len(sys.argv) != 3:
@@ -24,7 +26,6 @@ if __name__ == "__main__":
     output_file = sys.argv[1]
     num_clients = sys.argv[2]
 
-    # Ensure num_clients is a positive integer
     if not num_clients.isdigit() or int(num_clients) < 1:
         print("Error: <num_clients> must be a positive integer")
         sys.exit(1)

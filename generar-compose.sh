@@ -22,6 +22,8 @@ echo "      - PYTHONUNBUFFERED=1"               >> $OUTPUT_FILE
 echo "      - LOGGING_LEVEL=DEBUG"              >> $OUTPUT_FILE
 echo "    networks:"                            >> $OUTPUT_FILE
 echo "      - testing_net"                      >> $OUTPUT_FILE
+echo "    volumes:"                             >> $OUTPUT_FILE
+echo "      - ./server/config.ini:/config.ini"  >> $OUTPUT_FILE
 echo ""                                         >> $OUTPUT_FILE
 
 python3 utils/create_clients.py $OUTPUT_FILE $NUM_CLIENTS
