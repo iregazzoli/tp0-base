@@ -23,15 +23,15 @@ type ClientConfig struct {
 type Client struct {
 	config ClientConfig
 	conn   net.Conn
-	stopChan  chan struct{}
+	stopping bool
 }
 
 // NewClient Initializes a new client receiving the configuration
 // as a parameter
-func NewClient(config ClientConfig, stopChan chan struct{}) *Client {
+func NewClient(config ClientConfig) *Client {
 	client := &Client{
 		config:   config,
-		stopChan: stopChan,
+		stopping: false,
 	}
 	return client
 }
@@ -52,13 +52,13 @@ func (c *Client) createClientSocket() error {
 // StartClientLoop Send messages to the client until some time threshold is met
 func (c *Client) StartClientLoop() {
 
-	if c.handleShutdown() {
+	if c.stopping {
 		return
 	}
 	// There is an autoincremental msgID to identify every message sent
 	// Messages if the message amount threshold has not been surpassed
 	for msgID := 1; msgID <= c.config.LoopAmount; msgID++ {
-		if c.handleShutdown() {
+		if c.stopping {
 			return
 		}
 	
@@ -68,7 +68,7 @@ func (c *Client) StartClientLoop() {
 			return
 		}
 
-		if c.handleShutdown() {
+		if c.stopping {
 			return
 		}
 
@@ -103,20 +103,9 @@ func (c *Client) StartClientLoop() {
 	log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
 }
 
-func (c *Client) handleShutdown() bool {
-	select {
-	case <-c.stopChan:
-		log.Infof("action: shutdown | result: success | client_id: %v", c.config.ID)
-		c.StopClientLoop()
-		return true
-	default:
-		return false
-	}
-}
-
-
 func (c *Client) StopClientLoop() {
 	if c.conn != nil {
 		c.conn.Close()
 	}
+	c.stopping = true
 }
