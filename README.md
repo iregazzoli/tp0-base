@@ -195,8 +195,8 @@ Ejecutar `./generar-compose.sh <nombre-del-archivo> <numero-de-clientes>`, por e
 
 ### Ejercicio N°2:
 
-Como esta estipulado por la catedra, para buildear el docker file ejecutar `make docker-compose-up`.
+Como esta estipulado por la catedra, para buildear el docker file ejecutar `make docker-compose-up`. Para resolver el ejercicio se agrego el uso de volumenes para que no sea necesario buildear la imagen al hacer cambios en los archivos de configuracion.
 
 ### Ejercicio N°3:
 
-ya habiendo levantado el servidor ejecutando `make docker-compose-up`, ejecutar `./validar-echo-server.sh`.
+Ya habiendo levantado el servidor ejecutando `make docker-compose-up`, ejecutar `./validar-echo-server.sh`. El script levanta un contenedor temporal basado en el cliente, el cual envia un mensaje al servidor y espera su respuesta, por ultimo confirma que el mensaje recibido sea igual al enviado.
