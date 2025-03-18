@@ -200,3 +200,7 @@ Como esta estipulado por la catedra, para buildear el docker file ejecutar `make
 ### Ejercicio N°3:
 
 Ya habiendo levantado el servidor ejecutando `make docker-compose-up`, ejecutar `./validar-echo-server.sh`. El script levanta un contenedor temporal basado en el cliente, el cual envia un mensaje al servidor y espera su respuesta, por ultimo confirma que el mensaje recibido sea igual al enviado.
+
+#### Ejercicio N°4:
+
+La ejecución sigue siendo la misma `make docker-compose-up`, para la liberación de recursos y que termine de forma "graceful" el cliente se hace uso de channels, en el main se instancia un canal para captar las señales de SIGTERM o SIGINT, y se define una funcion que estipula que en caso de detectar dicha señal se llama al metodo `StopClientLoop` el cual cierra el socket y frena el loop del cliente. Para el servidor se hace uso de signals de forma analoga si se detecta una señal de SIGTERM o SIGINT, se interrumpe el servidor, se cierra el socket y se sale del programa.
