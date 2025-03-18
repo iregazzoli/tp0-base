@@ -94,10 +94,18 @@ func (c *Client) StartClientLoop() {
 			return
 		}
 
+		if c.stopping {
+			return
+		}
+
 		log.Infof("action: receive_message | result: success | client_id: %v | msg: %v",
 			c.config.ID,
 			msg,
 		)
+
+		if c.stopping {
+			return
+		}
 
 		// Wait a time between sending one message and the next one
 		time.Sleep(c.config.LoopPeriod)
