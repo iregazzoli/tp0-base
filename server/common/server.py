@@ -66,7 +66,7 @@ class Server:
         logging.info(f'action: accept_connections | result: success | ip: {addr[0]}')
         return c
     
-    def _handle_shutdown(self):
+    def _handle_shutdown(self, signum, frame):
         self._server_socket.close()
         self._running = False
         logging.info("action: shutdown_server | result: success")
