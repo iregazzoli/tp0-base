@@ -118,4 +118,5 @@ func (c *Client) StopClientLoop() {
 	log.Infof("action: shutdown | result: success | client_id: %v", c.config.ID)
 	c.conn.Close()
 	c.stopping = true
+	os.Exit(0)
 }
