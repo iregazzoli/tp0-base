@@ -109,7 +109,19 @@ func main() {
 		LoopAmount:    v.GetInt("loop.amount"),
 		LoopPeriod:    v.GetDuration("loop.period"),
 	}
+	//Channel to capture signals
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGTERM, syscall.SIGINT)
 
-	client := common.NewClient(clientConfig)
+	// Channel to stop the client loop
+	stopChan := make(chan struct{})
+
+	go func() {
+		<-sigChan
+		log.Infof("action: shutdown | result: success | message: SIGTERM received")
+		close(stopChan) // Notify client to shutdown
+	}()
+
+	client := common.NewClient(clientConfig, stopChan)
 	client.StartClientLoop()
 }
