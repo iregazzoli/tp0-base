@@ -42,11 +42,7 @@ func NewClient(config ClientConfig, stopChan chan struct{}) *Client {
 func (c *Client) createClientSocket() error {
 	conn, err := net.Dial("tcp", c.config.ServerAddress)
 	if err != nil {
-		log.Criticalf(
-			"action: connect | result: fail | client_id: %v | error: %v",
-			c.config.ID,
-			err,
-		)
+		log.Errorf("action: connect | result: fail | client_id: %v | error: %v", c.config.ID, err)
 		return err
 	}
 	c.conn = conn
@@ -69,8 +65,11 @@ func (c *Client) StartClientLoop() {
 	
 			// Create the connection the server in every loop iteration. Send an
 			if err := c.createClientSocket(); err != nil {
-				return
+				log.Warningf("action: connect | result: retrying | client_id: %v", c.config.ID)
+				time.Sleep(1 * time.Second)
+				continue
 			}
+			
 
 		// TODO: Modify the send to avoid short-write
 		fmt.Fprintf(
