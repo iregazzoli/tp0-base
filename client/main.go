@@ -117,6 +117,7 @@ func main() {
 
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 	go func() {
+		log.Infof("Waiting for SIGTERM...")
 		<-sigChan
 		log.Infof("action: exit | result: success | message: SIGINT received")
 		client.StopClientLoop()
