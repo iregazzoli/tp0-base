@@ -19,7 +19,7 @@ echo "    image: server:latest"                 >> $OUTPUT_FILE
 echo "    entrypoint: python3 /main.py"         >> $OUTPUT_FILE
 echo "    environment:"                         >> $OUTPUT_FILE
 echo "      - PYTHONUNBUFFERED=1"               >> $OUTPUT_FILE
-echo "      - LOGGING_LEVEL=DEBUG"              >> $OUTPUT_FILE
+echo "      - LOGGING_LEVEL=INFO"              >> $OUTPUT_FILE
 echo "    networks:"                            >> $OUTPUT_FILE
 echo "      - testing_net"                      >> $OUTPUT_FILE
 echo "    volumes:"                             >> $OUTPUT_FILE
