@@ -64,7 +64,7 @@ func (c *Client) StartClientLoop() {
 	
 		// Create the connection the server in every loop iteration. Send an
 		err := c.createClientSocket()
-		if err != nil || c.stopChan {
+		if err != nil {
 			return
 		}
 
@@ -79,7 +79,7 @@ func (c *Client) StartClientLoop() {
 			c.config.ID,
 			msgID,
 		)
-		
+
 		msg, err := bufio.NewReader(c.conn).ReadString('\n')
 		c.conn.Close()
 
