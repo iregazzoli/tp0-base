@@ -192,3 +192,7 @@ La corrección personal tendrá en cuenta la calidad del código entregado y cas
 ### Ejercicio N°1:
 
 Ejecutar `./generar-compose.sh <nombre-del-archivo> <numero-de-clientes>`, por ejemplo: `./generar-compose.sh docker-compose-dev.yaml 2`.
+
+### Ejercicio N°2:
+
+Como esta estipulado por la catedra, para buildear el docker file ejecutar `make docker-compose-up`. Para resolver el ejercicio se agrego el uso de volumenes para que no sea necesario buildear la imagen al hacer cambios en los archivos de configuracion.
