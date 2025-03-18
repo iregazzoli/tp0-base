@@ -12,8 +12,8 @@ class Server:
         self._server_socket.listen(listen_backlog)
         self._running = True
 
-        signal.signal(signal.SIGINT, self.__handle_shutdown)
-        signal.signal(signal.SIGTERM, self.__handle_shutdown)
+        signal.signal(signal.SIGINT, self._handle_shutdown)
+        signal.signal(signal.SIGTERM, self._handle_shutdown)
 
     def run(self):
         """
