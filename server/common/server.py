@@ -2,6 +2,8 @@ import socket
 import logging
 import signal
 import sys
+from .protocol import ServerProtocol
+from .utils import *
 
 
 class Server:
@@ -11,6 +13,7 @@ class Server:
         self._server_socket.bind(('', port))
         self._server_socket.listen(listen_backlog)
         self._running = True
+        self.protocol = ServerProtocol()
 
         signal.signal(signal.SIGINT, self._handle_shutdown)
         signal.signal(signal.SIGTERM, self._handle_shutdown)
@@ -41,12 +44,27 @@ class Server:
         client socket will also be closed
         """
         try:
-            # TODO: Modify the receive to avoid short-reads
-            msg = client_sock.recv(1024).rstrip().decode('utf-8')
             addr = client_sock.getpeername()
-            logging.info(f'action: receive_message | result: success | ip: {addr[0]} | msg: {msg}')
-            # TODO: Modify the send to avoid short-writes
-            client_sock.send("{}\n".format(msg).encode('utf-8'))
+            logging.info(f'action: receive_message | result: success | ip: {addr[0]}')
+            
+            bet_info = self.protocol.recv_bet(client_sock)
+            # bet_info = self.recv_bet(client_sock)
+            if bet_info:
+                bet = Bet(
+                    agency=bet_info['cli_id'],
+                    first_name=bet_info['name'],
+                    last_name=bet_info['lastname'],
+                    document=str(bet_info['dni']),
+                    birthdate=bet_info['date_of_birth'],
+                    number=str(bet_info['number'])
+                )
+
+                store_bets([bet])
+                logging.info(f"action: apuesta_almacenada | result: success | dni: {bet_info['dni']} | numero: {bet_info['number']}") #catedra
+
+                client_sock.sendall(b"SUCCESS\n")
+            else:
+                client_sock.sendall(b"FAIL\n")
         except OSError as e:
             logging.error("action: receive_message | result: fail | error: {e}")
         finally:
