@@ -1,10 +1,9 @@
 package common
 
 import (
-	"bufio"
-	"fmt"
 	"net"
 	"os"
+	"time"
 	"github.com/op/go-logging"
 )
 

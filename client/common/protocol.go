@@ -1,11 +1,11 @@
 package common
 
 import (
-	"bytes"
 	"encoding/binary"
 	"fmt"
 	"net"
 	"strconv"
+	"bufio"
 )
 
 type ClientProtocol struct{}
