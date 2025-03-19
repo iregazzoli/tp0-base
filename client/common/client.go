@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"fmt"
 	"net"
-	"time"
 	"os"
 	"github.com/op/go-logging"
 )
@@ -24,6 +23,7 @@ type Client struct {
 	config ClientConfig
 	conn   net.Conn
 	stopping bool
+	protocol *ClientProtocol
 }
 
 // NewClient Initializes a new client receiving the configuration
@@ -32,6 +32,7 @@ func NewClient(config ClientConfig) *Client {
 	client := &Client{
 		config:   config,
 		stopping: false,
+		protocol: &ClientProtocol{},
 	}
 	return client
 }
@@ -57,61 +58,34 @@ func (c *Client) StartClientLoop() {
 	if c.stopping {
 		return
 	}
-
-	// There is an autoincremental msgID to identify every message sent
-	// Messages if the message amount threshold has not been surpassed
-	for msgID := 1; msgID <= c.config.LoopAmount; msgID++ {
-		if c.stopping {
-			return
-		}
-	
-		// Create the connection the server in every loop iteration. Send an
-		err := c.createClientSocket()
-		if err != nil {
-			return
-		}
-
-		if c.stopping {
-			return
-		}
-
-		// TODO: Modify the send to avoid short-write
-		fmt.Fprintf(
-			c.conn,
-			"[CLIENT %v] Message N°%v\n",
-			c.config.ID,
-			msgID,
-		)
-
-		msg, err := bufio.NewReader(c.conn).ReadString('\n')
-		c.conn.Close()
-
-		if err != nil {
-			log.Errorf("action: receive_message | result: fail | client_id: %v | error: %v",
-				c.config.ID,
-				err,
-			)
-			return
-		}
-
-		if c.stopping {
-			return
-		}
-
-		log.Infof("action: receive_message | result: success | client_id: %v | msg: %v",
-			c.config.ID,
-			msg,
-		)
-
-		if c.stopping {
-			return
-		}
-
-		// Wait a time between sending one message and the next one
-		time.Sleep(c.config.LoopPeriod)
-
+	// Create the connection the server in every loop iteration. Send an
+	err := c.createClientSocket()
+	if err != nil {
+		return
 	}
-	log.Infof("action: loop_finished | result: success | client_id: %v", c.config.ID)
+
+	if c.stopping {
+		return
+	}
+
+	id := os.Getenv("CLI_ID")
+	dni := os.Getenv("DOCUMENTO")
+	number := os.Getenv("NUMERO")
+	name := os.Getenv("NOMBRE")
+	lastname := os.Getenv("APELLIDO")
+	dateOfBirth := os.Getenv("NACIMIENTO")
+
+	success, err := c.protocol.SendBet(c.conn, id, dni, name, lastname, dateOfBirth, number)
+	if err != nil || !success {
+		log.Errorf("action: send_bet | result: fail | client_id: %v | error: %v", c.config.ID, err)
+		return
+	}
+
+	log.Infof("action: apuesta_enviada | result: success | dni: %v | numero: %v", dni, number)
+
+	if c.stopping {
+		return
+	}
 }
 
 func (c *Client) StopClientLoop() {
