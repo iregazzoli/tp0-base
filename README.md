@@ -204,3 +204,9 @@ Ya habiendo levantado el servidor ejecutando `make docker-compose-up`, ejecutar 
 #### Ejercicio N°4:
 
 La ejecución sigue siendo la misma `make docker-compose-up`, para la liberación de recursos y que termine de forma "graceful" el cliente se hace uso de channels, en el main se instancia un canal para captar las señales de SIGTERM o SIGINT, y se define una funcion que estipula que en caso de detectar dicha señal se llama al metodo `StopClientLoop` el cual cierra el socket y frena el loop del cliente. Para el servidor se hace uso de signals de forma analoga si se detecta una señal de SIGTERM o SIGINT, se interrumpe el servidor, se cierra el socket y se sale del programa.
+
+#### Ejercicio N°5:
+
+Para ejecutar el ejercicio primero asegurence de correr el script del archivo `generar-compose.sh` para agregar las variables de entorno del cliente, luego levante el cliente y el servidor usando `make docker-compose-up`.
+
+El protocolo de comunicación usado es el siguiente, el cliente envian los datos en **Big Endian**. Cada mensaje del cliente contiene: `CLI_ID` (4 bytes), `DNI` (4 bytes), `Número` (4 bytes), `Fecha de Nacimiento` (10 bytes), `Longitud del Nombre` (4 bytes) seguido del `Nombre` (variable), `Longitud del Apellido` (4 bytes) seguido del `Apellido` (variable). El servidor recibe y reconstruye los datos, almacenando la apuesta y respondiendo `"SUCCESS\n"` si fue procesada correctamente, o `"FAIL\n"` en caso de error.
