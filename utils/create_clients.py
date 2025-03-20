@@ -60,6 +60,7 @@ def generate_clients(filename, num_clients):
             f.write(f"      - server\n")
             f.write(f"    volumes:\n")
             f.write(f"      - ./client/config.yaml:/config.yaml\n")
+            f.write(f"      - ./.data/agency-{i}.csv:/data/agency-{i}.csv \n")
             f.write("\n")
 
 if __name__ == "__main__":

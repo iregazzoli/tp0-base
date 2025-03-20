@@ -3,3 +3,7 @@
 
 # Executables
 bin/
+
+# CSV files
+.data/*.csv
+

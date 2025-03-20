@@ -210,3 +210,7 @@ La ejecución sigue siendo la misma `make docker-compose-up`, para la liberació
 Para ejecutar el ejercicio primero asegurence de correr el script del archivo `generar-compose.sh` para agregar las variables de entorno del cliente, luego levante el cliente y el servidor usando `make docker-compose-up`.
 
 El protocolo de comunicación usado es el siguiente, el cliente envian los datos en **Big Endian**. Cada mensaje del cliente contiene: `CLI_ID` (4 bytes), `DNI` (4 bytes), `Número` (4 bytes), `Fecha de Nacimiento` (10 bytes), `Longitud del Nombre` (4 bytes) seguido del `Nombre` (variable), `Longitud del Apellido` (4 bytes) seguido del `Apellido` (variable). El servidor recibe y reconstruye los datos, almacenando la apuesta y respondiendo `"SUCCESS\n"` si fue procesada correctamente, o `"FAIL\n"` en caso de error.
+
+#### Ejercicio N°6:
+
+Para ejecutarlo primer asegurarse de descomprimir el zip que incluye los csvs `unzip -o .data/dataset.zip -d .data/`,
