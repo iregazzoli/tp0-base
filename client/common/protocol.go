@@ -1,11 +1,12 @@
 package common
 
 import (
+	"bufio"
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"net"
 	"strconv"
-	"bufio"
 )
 
 type ClientProtocol struct{}
@@ -42,84 +43,65 @@ func convertToInt(value string) (int, error) {
 	return converted, nil
 }
 
-func (cp *ClientProtocol) SendBet(
-	conn net.Conn,
-	cliID string,
-	dni string,
-	name string,
-	lastname string,
-	dateOfBirth string,
-	number string,
-) (bool, error) {
-	// Convert clientId, dni and number to int
-	cliIDInt, err := convertToInt(cliID)
-	if err != nil {
-			return false, err
-	}
+func (cp *ClientProtocol) SendBatch(conn net.Conn, bets []Bet) (bool, error) {
+	var batchBuffer bytes.Buffer
 
-	dniInt, err := convertToInt(dni)
-	if err != nil {
-			return false, err
-	}
+	// Amount of Bets in Batch (4 bytes)
+	numBets := len(bets)
+	numBetsBytes := cp.htonl(numBets)
+	batchBuffer.Write(numBetsBytes)
 
-	numberInt, err := convertToInt(number)
-	if err != nil {
-			return false, err
-	}
+	for _, bet := range bets {
+		// Convert cliID, DNI y Number to int
+		cliIDInt, err := strconv.Atoi(bet.CliID)
+		if err != nil {
+			return false, fmt.Errorf("error converting CLI_ID: %v", err)
+		}
+		dniInt, err := strconv.Atoi(bet.DNI)
+		if err != nil {
+			return false, fmt.Errorf("error converting DNI: %v", err)
+		}
+		numberInt, err := strconv.Atoi(bet.Number)
+		if err != nil {
+			return false, fmt.Errorf("error converting Number: %v", err)
+		}
 
-	// 4 bytes
-	cliIDBytes := cp.htonl(cliIDInt)
-	if err := cp.sendAll(conn, cliIDBytes); err != nil {
+		// cliID (4 bytes)
+		batchBuffer.Write(cp.htonl(cliIDInt))
+
+		// DNI (4 bytes)
+		batchBuffer.Write(cp.htonl(dniInt))
+
+		// Bet Number (4 bytes)
+		batchBuffer.Write(cp.htonl(numberInt))
+
+		// Date of Birth (10 bytes)
+		dateOfBirthBytes := []byte(bet.DateOfBirth)
+
+		batchBuffer.Write(dateOfBirthBytes)
+		// Name: length (4 bytes) + actual name
+		nameBytes := []byte(bet.Name)
+		batchBuffer.Write(cp.htonl(len(nameBytes)))
+		batchBuffer.Write(nameBytes)
+
+		// Lastname: length (4 bytes) + actual lastname
+		lastnameBytes := []byte(bet.Lastname)
+		batchBuffer.Write(cp.htonl(len(lastnameBytes)))
+		batchBuffer.Write(lastnameBytes)
+	}
+	// Send batch
+	if err := cp.sendAll(conn, batchBuffer.Bytes()); err != nil {
 		return false, err
 	}
-
-	// 4 bytes
-	dniBytes := cp.htonl(dniInt)
-	if err := cp.sendAll(conn, dniBytes); err != nil {
-		return false, err
-	}
-
-	// 4 bytes
-	numberBytes := cp.htonl(numberInt)
-	if err := cp.sendAll(conn, numberBytes); err != nil {
-		return false, err
-	}
-
-	// 10 bytes
-	dateOfBirthBytes := []byte(dateOfBirth)
-	if err := cp.sendAll(conn, dateOfBirthBytes); err != nil {
-		return false, err
-	}
-
-	// send bytes of name + name
-	nameBytes := []byte(name)
-	nameLengthBytes := cp.htonl(len(nameBytes))
-	if err := cp.sendAll(conn, nameLengthBytes); err != nil {
-		return false, err
-	}
-	if err := cp.sendAll(conn, nameBytes); err != nil {
-		return false, err
-	}
-
-	// send bytes of lastname + lastname
-	lastnameBytes := []byte(lastname)
-	lastnameLengthBytes := cp.htonl(len(lastnameBytes))
-	if err := cp.sendAll(conn, lastnameLengthBytes); err != nil {
-		return false, err
-	}
-	if err := cp.sendAll(conn, lastnameBytes); err != nil {
-		return false, err
-	}
-
-	// Wait for server response
+	
+	// Server asnwer
 	response, err := bufio.NewReader(conn).ReadString('\n')
 	if err != nil {
 		return false, fmt.Errorf("error receiving server response: %v", err)
 	}
 
-	// Check if the response is "SUCCESS\n"
 	if response != "SUCCESS\n" {
-		return false, fmt.Errorf("bet was not successful, server response: %v", response)
+		return false, fmt.Errorf("batch was not successful, server response: %v", response)
 	}
 
 	return true, nil

@@ -4,8 +4,20 @@ import (
 	"net"
 	"os"
 	"time"
+	"fmt"
+	"io"
 	"github.com/op/go-logging"
+	"encoding/csv"
 )
+
+type Bet struct {
+	CliID       string
+	DNI         string
+	Name        string
+	Lastname    string
+	DateOfBirth string
+	Number      string
+}
 
 var log = logging.MustGetLogger("log")
 
@@ -15,6 +27,8 @@ type ClientConfig struct {
 	ServerAddress string
 	LoopAmount    int
 	LoopPeriod    time.Duration
+	BatchMaxAmount int  
+	CSVPath       string
 }
 
 // Client Entity that encapsulates how
@@ -63,28 +77,82 @@ func (c *Client) StartClientLoop() {
 		return
 	}
 
-	if c.stopping {
-		return
+	if err := c.sendBatches(); err != nil {
+    log.Errorf("action: send_batches | result: fail | client_id: %v | error: %v", c.config.ID, err)
+	}
+}
+
+func (c *Client) sendBatches() error {
+	file, err := os.Open(c.config.CSVPath)
+	if err != nil {
+		return fmt.Errorf("Error opening CSV: %w", err)
+	}
+	defer file.Close()
+
+	reader := csv.NewReader(file)
+	//Since we are sending the amount of bets the size of the batch starts at 4
+	batchSize := 4
+	var batch []Bet
+
+	for {
+		if c.stopping {
+			return nil
+		}
+
+		record, err := reader.Read()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return fmt.Errorf("error reading CSV: %w", err)
+		}
+
+		bet := Bet{
+			CliID:       c.config.ID,
+			Name:        record[0],
+			Lastname:    record[1],
+			DNI:         record[2],
+			DateOfBirth: record[3],
+			Number:      record[4],
+		}
+
+		betSize := computeBetBinarySize(bet)
+
+		// If adding the new bet to the batch surpasses 8kb send the batch as it is.
+		if batchSize+betSize > 8192 {
+			if len(batch) > 0 {
+				if err := c.protocol.SendBatch(c.conn, batch); err != nil {
+					return fmt.Errorf("error enviando batch: %w", err)
+				}
+			}
+			// Restart batch
+			batch = []Bet{}
+			batchSize = 4
+		}
+		batch = append(batch, bet)
+		batchSize += betSize
 	}
 
-	id := os.Getenv("CLI_ID")
-	dni := os.Getenv("DOCUMENTO")
-	number := os.Getenv("NUMERO")
-	name := os.Getenv("NOMBRE")
-	lastname := os.Getenv("APELLIDO")
-	dateOfBirth := os.Getenv("NACIMIENTO")
-
-	success, err := c.protocol.SendBet(c.conn, id, dni, name, lastname, dateOfBirth, number)
-	if err != nil || !success {
-		log.Errorf("action: send_bet | result: fail | client_id: %v | error: %v", c.config.ID, err)
-		return
+	// Send last batch if there still unsend bets
+	if len(batch) > 0 {
+		if err := c.protocol.SendBatch(c.conn, batch); err != nil {
+			return fmt.Errorf("error enviando batch final: %w", err)
+		}
 	}
 
-	log.Infof("action: apuesta_enviada | result: success | dni: %v | numero: %v", dni, number)
+	return nil
+}
 
-	if c.stopping {
-		return
-	}
+func computeBetBinarySize(bet Bet) int {
+	// Each Bet is:
+	// cliID: 4 bytes (agency)
+	// name: 4 bytes para la longitud + len(bet.Name)
+	// lastname: 4 bytes para la longitud + len(bet.Lastname)
+	// dni: 4 bytes
+	// dateOfBirth: 10 bytes
+	// number: 4 bytes
+	// Total: (4 + len(name)) + (4 + len(lastname)) + 4 + 10 + 4 = 30 + len(name) + len(lastname)
+	return 30 + len(bet.Name) + len(bet.Lastname)
 }
 
 func (c *Client) StopClientLoop() {
