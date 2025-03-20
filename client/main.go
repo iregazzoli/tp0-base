@@ -109,11 +109,14 @@ func main() {
 		ID:            v.GetString("id"),
 		LoopAmount:    v.GetInt("loop.amount"),
 		LoopPeriod:    v.GetDuration("loop.period"),
+		BatchMaxAmount:  v.GetInt("batch.maxAmount"),
 	}
+
+	clientConfig.CSVPath = fmt.Sprintf("/data/agency-%s.csv", clientConfig.ID)
 
 	client := common.NewClient(clientConfig)
 	// Signal handling
-	//Channel to capture signals
+	// Channel to capture signals
 	sigChan := make(chan os.Signal, 1)
 
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)

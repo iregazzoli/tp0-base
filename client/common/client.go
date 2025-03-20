@@ -121,7 +121,7 @@ func (c *Client) sendBatches() error {
 		// If adding the new bet to the batch surpasses 8kb send the batch as it is.
 		if batchSize+betSize > 8192 {
 			if len(batch) > 0 {
-				if err := c.protocol.SendBatch(c.conn, batch); err != nil {
+				if _, err := c.protocol.SendBatch(c.conn, batch); err != nil {
 					return fmt.Errorf("error enviando batch: %w", err)
 				}
 			}
@@ -135,8 +135,8 @@ func (c *Client) sendBatches() error {
 
 	// Send last batch if there still unsend bets
 	if len(batch) > 0 {
-		if err := c.protocol.SendBatch(c.conn, batch); err != nil {
-			return fmt.Errorf("error enviando batch final: %w", err)
+		if _, err := c.protocol.SendBatch(c.conn, batch); err != nil {
+			return fmt.Errorf("error enviando batch: %w", err)
 		}
 	}
 

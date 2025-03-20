@@ -43,9 +43,9 @@ func convertToInt(value string) (int, error) {
 	return converted, nil
 }
 
+// Returns (true, nil) if server's response is "SUCCESS\n" and (false, error) otherwise.
 func (cp *ClientProtocol) SendBatch(conn net.Conn, bets []Bet) (bool, error) {
 	var batchBuffer bytes.Buffer
-
 	// Amount of Bets in Batch (4 bytes)
 	numBets := len(bets)
 	numBetsBytes := cp.htonl(numBets)
@@ -93,7 +93,7 @@ func (cp *ClientProtocol) SendBatch(conn net.Conn, bets []Bet) (bool, error) {
 	if err := cp.sendAll(conn, batchBuffer.Bytes()); err != nil {
 		return false, err
 	}
-	
+
 	// Server asnwer
 	response, err := bufio.NewReader(conn).ReadString('\n')
 	if err != nil {
