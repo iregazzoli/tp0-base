@@ -46,25 +46,19 @@ class Server:
         try:
             addr = client_sock.getpeername()
             logging.info(f'action: receive_message | result: success | ip: {addr[0]}')
+
+            all_batches = self.protocol.recv_batches(client_sock, addr[0])
+            amount_of_bets = 0
+
+            for bets in all_batches:
+                amount_of_bets += len(bets)
+                store_bets(bets)
+
+            logging.info(f"action: apuesta_recibida | result: success | cantidad: {amount_of_bets}") 
+
+        except ValueError as e:
+            logging.error(f"action: process_batches | result: fail | error: {e}")
             
-            bet_info = self.protocol.recv_bet(client_sock)
-            # bet_info = self.recv_bet(client_sock)
-            if bet_info:
-                bet = Bet(
-                    agency=bet_info['cli_id'],
-                    first_name=bet_info['name'],
-                    last_name=bet_info['lastname'],
-                    document=str(bet_info['dni']),
-                    birthdate=bet_info['date_of_birth'],
-                    number=str(bet_info['number'])
-                )
-
-                store_bets([bet])
-                logging.info(f"action: apuesta_almacenada | result: success | dni: {bet_info['dni']} | numero: {bet_info['number']}") #catedra
-
-                client_sock.sendall(b"SUCCESS\n")
-            else:
-                client_sock.sendall(b"FAIL\n")
         except OSError as e:
             logging.error("action: receive_message | result: fail | error: {e}")
         finally:
