@@ -139,10 +139,11 @@ func (cp *ClientProtocol) ConsultWinners(conn net.Conn) ([]int, error) {
 	}
 
 	count := cp.ntohl(countBytes)	
-
+	
 	winners := make([]int, 0, count)
 
 	for i := 0; i < int(count); i++ {
+		//DNI of winner (4 byte)
 		dniBytes, err := cp.readNBytes(conn, 4)
 		if err != nil {
 			return nil, fmt.Errorf("action: read_winners_DNI | result: fail | DNI %d: %w", i+1, err)

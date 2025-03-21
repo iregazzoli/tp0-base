@@ -6,7 +6,7 @@ import sys
 from .protocol import ServerProtocol
 from .utils import *
 
-CLIENTS_TOTAL = int(os.environ.get("TOTAL_EXPECTED_CLIENTS", "5"))
+CLIENTS_TOTAL = int(os.environ.get("CLIENTS_TOTAL", "5"))
 
 class Server:
     def __init__(self, port, listen_backlog):
@@ -60,9 +60,8 @@ class Server:
 
             agency_id = all_batches[0][0].agency
             self._clients[agency_id] = client_sock
-
             self._notified_clients += 1
-
+            
             if self._notified_clients == CLIENTS_TOTAL:
                 logging.info("action: run_draw | result: in_progress")
                 self._run_draw()
@@ -71,9 +70,6 @@ class Server:
             logging.error(f"action: apuesta_recibida | result: fail | cantidad: {amount_of_bets} | error: {e}")
         except OSError as e:
             logging.error(f"action: apuesta_recibida | result: fail | cantidad: {amount_of_bets} | error: {e}")
-        finally:
-            logging.info(f"action: exit | result: success | ip: {addr[0]}")
-            client_sock.close()
 
     def __accept_new_connection(self):
         """
