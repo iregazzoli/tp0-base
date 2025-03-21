@@ -145,11 +145,16 @@ func (c *Client) sendBatches() error {
 		}
 	}
 
-	if err := c.protocol.signalEndOfBatch(c.conn); err != nil {
+	if err := c.protocol.signalEndOfBatches(c.conn); err != nil {
     return fmt.Errorf("error sending termination header: %w", err)
 	}
-
 	log.Infof("action: send_batches | result: success | client_id: %v", c.config.ID)
+
+	winners, err := c.protocol.ConsultWinners(c.conn)
+	if err != nil {
+		return fmt.Errorf("error consulting winners: %w", err)
+	}
+	log.Infof("action: consult_winners | result: success | amount_of_winners: %d", len(winners))
 
 	return nil
 }

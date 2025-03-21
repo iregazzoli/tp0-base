@@ -19,7 +19,7 @@ func (cp *ClientProtocol) htonl(value int) []byte {
 }
 
 func (cp *ClientProtocol) ntohl(b []byte) int {
-	return int(binary.LittleEndian.Uint32(b))
+	return int(binary.BigEndian.Uint32(b))
 }
 
 func (cp *ClientProtocol) sendAll(conn net.Conn, data []byte) error {
@@ -35,6 +35,20 @@ func (cp *ClientProtocol) sendAll(conn net.Conn, data []byte) error {
 	return nil
 }
 
+func (cp *ClientProtocol) readNBytes(conn net.Conn, n int) ([]byte, error) {
+	// Helper function to read data with short read handling
+	buf := make([]byte, n)
+	totalRead := 0
+	for totalRead < n {
+		nRead, err := conn.Read(buf[totalRead:])
+		if err != nil {
+			return nil, err
+		}
+		totalRead += nRead
+	}
+	return buf, nil
+}
+
 func convertToInt(value string) (int, error) {
 	converted, err := strconv.Atoi(value)
 	if err != nil {
@@ -43,7 +57,7 @@ func convertToInt(value string) (int, error) {
 	return converted, nil
 }
 
-func (cp *ClientProtocol) signalEndOfBatch(conn net.Conn) error {
+func (cp *ClientProtocol) signalEndOfBatches(conn net.Conn) error {
 	terminationHeader := cp.htonl(0)
 	if err := cp.sendAll(conn, terminationHeader); err != nil {
 			return fmt.Errorf("error sending termination header: %w", err)
@@ -115,4 +129,27 @@ func (cp *ClientProtocol) SendBatch(conn net.Conn, bets []Bet) (bool, error) {
 	}
 
 	return true, nil
+}
+
+func (cp *ClientProtocol) ConsultWinners(conn net.Conn) ([]int, error) {
+	// Amount of winners (4 bytes)
+	countBytes, err := cp.readNBytes(conn, 4)
+	if err != nil {
+		return nil, fmt.Errorf("action: read_amount_of_winners | result: fail | %w", err)
+	}
+
+	count := cp.ntohl(countBytes)	
+
+	winners := make([]int, 0, count)
+
+	for i := 0; i < int(count); i++ {
+		dniBytes, err := cp.readNBytes(conn, 4)
+		if err != nil {
+			return nil, fmt.Errorf("action: read_winners_DNI | result: fail | DNI %d: %w", i+1, err)
+		}
+		dni := cp.ntohl(dniBytes)
+		winners = append(winners, dni)
+	}
+
+	return winners, nil
 }
