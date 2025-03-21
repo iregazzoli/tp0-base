@@ -57,11 +57,11 @@ class Server:
             logging.info(f"action: apuesta_recibida | result: success | cantidad: {amount_of_bets}") 
 
         except ValueError as e:
-            logging.error(f"action: process_batches | result: fail | error: {e}")
-            
+            logging.error(f"action: apuesta_recibida | result: fail | cantidad: {amount_of_bets} | error: {e}")
         except OSError as e:
-            logging.error("action: receive_message | result: fail | error: {e}")
+            logging.error(f"action: apuesta_recibida | result: fail | cantidad: {amount_of_bets} | error: {e}")
         finally:
+            logging.info(f"action: exit | result: success | ip: {addr[0]}")
             client_sock.close()
 
     def __accept_new_connection(self):
