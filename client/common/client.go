@@ -62,6 +62,9 @@ func (c *Client) createClientSocket() error {
 		log.Errorf("action: connect | result: fail | client_id: %v | error: %v", c.config.ID, err)
 		return err
 	}
+
+	log.Infof("action: connect | result: success | client_id: %v", c.config.ID)
+
 	c.conn = conn
 	return nil
 }
@@ -90,9 +93,11 @@ func (c *Client) sendBatches() error {
 	defer file.Close()
 
 	reader := csv.NewReader(file)
-	//Since we are sending the amount of bets the size of the batch starts at 4
+	//Since we are sending the amount of bets the size of the batch starts at 4 bytes
 	batchSize := 4
 	var batch []Bet
+
+	log.Infof("action: send_batches | result: in_progress | client_id: %v", c.config.ID)
 
 	for {
 		if c.stopping {
@@ -139,6 +144,12 @@ func (c *Client) sendBatches() error {
 			return fmt.Errorf("error enviando batch: %w", err)
 		}
 	}
+
+	if err := c.protocol.signalEndOfBatch(c.conn); err != nil {
+    return fmt.Errorf("error sending termination header: %w", err)
+	}
+
+	log.Infof("action: send_batches | result: success | client_id: %v", c.config.ID)
 
 	return nil
 }
