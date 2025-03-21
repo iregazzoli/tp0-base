@@ -126,5 +126,6 @@ func main() {
 		client.StopClientLoop()
 	}()
 	client.StartClientLoop()
+	client.StopClientLoop()
 }
 
