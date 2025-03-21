@@ -13,6 +13,16 @@ class ServerProtocol:
                 raise ConnectionError("Connection closed while receiving data")
             buffer.extend(packet)
         return buffer
+    def send_all(self, sock, data: bytes):
+        """
+        Helper to send all bytes, handling short writes
+        """
+        total_sent = 0
+        while total_sent < len(data):
+            sent = sock.send(data[total_sent:])
+            if sent == 0:
+                raise ConnectionError("Socket connection broken during send")
+            total_sent += sent
     
     def recv_batches(self, client_sock, clientAddres):
         logging.info(f'Receiving batches from client {clientAddres}')
@@ -20,7 +30,7 @@ class ServerProtocol:
         while True:
             bets = self.recv_batch(client_sock)
             if bets is None:
-                logging.info("Termination header received: no more batches.")
+                logging.info(f"Termination header received: no more batches from client {clientAddres}.")
                 break
             all_batches.append(bets)
             client_sock.sendall(b"SUCCESS\n")
@@ -79,3 +89,16 @@ class ServerProtocol:
         except ConnectionError as e:
             logging.error(f"action: receive_message | result: fail | error: {e}")
             return None
+        
+    def send_winners(self, sock, winners: list[int]):
+        """
+        Sends to client: number of winners (4 bytes) + each DNI (4 bytes)
+        """
+        count_bytes = len(winners).to_bytes(4, byteorder='big')
+        self.send_all(sock, count_bytes)
+
+        for dni in winners:
+            dni_bytes = int(dni).to_bytes(4, byteorder='big')
+            self.send_all(sock, dni_bytes)
+
+        logging.info(f"action: send_winners | result: success | cantidad: {len(winners)}")
