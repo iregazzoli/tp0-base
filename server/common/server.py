@@ -99,7 +99,7 @@ class Server:
         for agency_id, sock in self._clients.items():
             winners = winners_by_agency.get(agency_id, [])
             self.protocol.send_winners(sock, winners, agency_id)
-            sock.close()
+            # sock.close()
 
         self._clients.clear()
         # logging.info("action: run_draw | result: success")
