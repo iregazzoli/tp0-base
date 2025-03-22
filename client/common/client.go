@@ -156,6 +156,9 @@ func (c *Client) sendBatches() error {
 	}
 	log.Infof("action: send_batches | result: success | client_id: %v", c.config.ID)
 
+	// Wait a bit for the server to process all bets and log "draw"
+	time.Sleep(150 * time.Millisecond)
+
 	winners, err := c.protocol.ConsultWinners(c.conn)
 	if err != nil {
 		return fmt.Errorf("error consulting winners: %w", err)
