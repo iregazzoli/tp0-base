@@ -172,6 +172,7 @@ func computeBetBinarySize(bet Bet) int {
 }
 
 func (c *Client) StopClientLoop() {
+	log.Infof("action: exit | result: success | client_id: %v", c.config.ID)
 	log.Infof("action: shutdown | result: success | client_id: %v", c.config.ID)
 	c.conn.Close()
 	c.stopping = true
