@@ -63,7 +63,6 @@ class Server:
             self._notified_clients += 1
             
             if self._notified_clients == CLIENTS_TOTAL:
-                logging.info("action: sorteo | result: in_progress")
                 self._run_draw()
 
         except ValueError as e:
