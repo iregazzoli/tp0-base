@@ -63,7 +63,7 @@ class Server:
             self._notified_clients += 1
             
             if self._notified_clients == CLIENTS_TOTAL:
-                logging.info("action: run_draw | result: in_progress")
+                logging.info("action: sorteo | result: in_progress")
                 self._run_draw()
 
         except ValueError as e:
@@ -99,7 +99,8 @@ class Server:
             sock.close()
 
         self._clients.clear()
-        logging.info("action: run_draw | result: success")
+        # logging.info("action: run_draw | result: success")
+        logging.info("action: sorteo | result: success")
     
     def _handle_shutdown(self, signum, frame):
         self._server_socket.close()
