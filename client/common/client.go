@@ -154,8 +154,7 @@ func (c *Client) sendBatches() error {
 	if err != nil {
 		return fmt.Errorf("error consulting winners: %w", err)
 	}
-	log.Infof("action: consulta_ganadores | result: success | cant_ganadores: %d | source: client%s", len(winners), c.config.ID)
-
+	log.Infof("action: consulta_ganadores | result: success | cant_ganadores: %d", len(winners))
 
 	return nil
 }
