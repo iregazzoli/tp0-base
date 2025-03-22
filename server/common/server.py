@@ -80,7 +80,11 @@ class Server:
         # Connection arrived
         logging.info('action: accept_connections | result: in_progress')
         c, addr = self._server_socket.accept()
-        logging.info(f'action: accept_connections | result: success | ip: {addr[0]}')
+        # logging.info(f'action: accept_connections | result: success | ip: {addr[0]}')
+
+        client_id = self.protocol.recv_client_id(c)
+        logging.info(f'action: accept_connections | result: success | ip: {addr[0]} | client_id: {client_id}')
+        
         return c
     
     def _run_draw(self):
@@ -94,7 +98,7 @@ class Server:
 
         for agency_id, sock in self._clients.items():
             winners = winners_by_agency.get(agency_id, [])
-            self.protocol.send_winners(sock, winners)
+            self.protocol.send_winners(sock, winners, agency_id)
             sock.close()
 
         self._clients.clear()

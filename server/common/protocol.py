@@ -23,6 +23,11 @@ class ServerProtocol:
             if sent == 0:
                 raise ConnectionError("Socket connection broken during send")
             total_sent += sent
+
+    def recv_client_id(self, sock):
+        id_bytes = self.recv_exact(sock, 4)
+        client_id_int = int.from_bytes(id_bytes, byteorder='big')
+        return str(client_id_int)
     
     def recv_batches(self, client_sock, clientAddres):
         logging.info(f'Receiving batches from client {clientAddres}')
@@ -90,7 +95,7 @@ class ServerProtocol:
             logging.error(f"action: receive_message | result: fail | error: {e}")
             return None
         
-    def send_winners(self, sock, winners: list[int]):
+    def send_winners(self, sock, winners: list[int], agency_id):
         """
         Sends to client: number of winners (4 bytes) + each DNI (4 bytes)
         """
@@ -101,4 +106,4 @@ class ServerProtocol:
             dni_bytes = int(dni).to_bytes(4, byteorder='big')
             self.send_all(sock, dni_bytes)
 
-        logging.info(f"action: send_winners | result: success | cantidad: {len(winners)}")
+        logging.info(f"action: send_winners | result: success | client_Id: {agency_id} | cantidad: {len(winners)}")

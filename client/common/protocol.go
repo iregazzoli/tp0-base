@@ -65,6 +65,18 @@ func (cp *ClientProtocol) signalEndOfBatches(conn net.Conn) error {
 	return nil
 }
 
+func (cp *ClientProtocol) SendID(conn net.Conn, id string) error {
+	idInt, err := strconv.Atoi(id)
+	if err != nil {
+			return fmt.Errorf("error converting client id to int: %w", err)
+	}
+	idBytes := cp.htonl(idInt)
+	if err := cp.sendAll(conn, idBytes); err != nil {
+			return fmt.Errorf("error sending client id: %w", err)
+	}
+	return nil
+}
+
 // Returns (true, nil) if server's response is "SUCCESS\n" and (false, error) otherwise.
 func (cp *ClientProtocol) SendBatch(conn net.Conn, bets []Bet) (bool, error) {
 	var batchBuffer bytes.Buffer

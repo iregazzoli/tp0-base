@@ -66,6 +66,12 @@ func (c *Client) createClientSocket() error {
 	log.Infof("action: connect | result: success | client_id: %v", c.config.ID)
 
 	c.conn = conn
+
+	if err := c.protocol.SendID(c.conn, c.config.ID); err != nil {
+		log.Errorf("action: send_id | result: fail | client_id: %v | error: %v", c.config.ID, err)
+		return err
+	}
+
 	return nil
 }
 
