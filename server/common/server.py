@@ -89,12 +89,15 @@ class Server:
     
     def _run_draw(self):
         winners_by_agency = {}
+        logging.info("action: sorteo | result: success")
+        
         all_bets = load_bets()
 
         for bet in all_bets:
             if has_won(bet):
                 agency_id = bet.agency
                 winners_by_agency.setdefault(agency_id, []).append(int(bet.document))
+        
 
         for agency_id, sock in self._clients.items():
             winners = winners_by_agency.get(agency_id, [])
@@ -103,7 +106,6 @@ class Server:
 
         self._clients.clear()
         # logging.info("action: run_draw | result: success")
-        logging.info("action: sorteo | result: success")
     
     def _handle_shutdown(self, signum, frame):
         self._server_socket.close()
