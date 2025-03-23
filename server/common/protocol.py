@@ -29,13 +29,13 @@ class ServerProtocol:
         client_id_int = int.from_bytes(id_bytes, byteorder='big')
         return str(client_id_int)
     
-    def recv_batches(self, client_sock, clientAddres):
-        logging.info(f'Receiving batches from client {clientAddres}')
+    def recv_batches(self, client_sock, client_id):
+        logging.info(f'Receiving batches from client {client_id}')
         all_batches = []
         while True:
             bets = self.recv_batch(client_sock)
             if bets is None:
-                logging.info(f"Termination header received: no more batches from client {clientAddres}.")
+                logging.info(f"Termination header received: no more batches from client {client_id}.")
                 break
             all_batches.append(bets)
             client_sock.sendall(b"SUCCESS\n")

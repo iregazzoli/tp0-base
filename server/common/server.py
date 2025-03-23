@@ -36,15 +36,15 @@ class Server:
         """
         while self._running:
             try:
-                client_sock = self.__accept_new_connection()
+                client_sock, client_id  = self.__accept_new_connection()
             except OSError:
                 if not self._running:
                     break
-            client_thread = threading.Thread(target=self.__handle_client_connection, args=(client_sock,)) 
+            client_thread = threading.Thread(target=self.__handle_client_connection, args=(client_sock, client_id)) 
             client_thread.start()                                                                 
             self._threads.append(client_thread) 
 
-    def __handle_client_connection(self, client_sock):
+    def __handle_client_connection(self, client_sock, client_id):
         """
         Read message from a specific client socket and closes the socket
 
@@ -53,21 +53,21 @@ class Server:
         """
         try:
             addr = client_sock.getpeername()
-            logging.info(f'action: receive_message | result: success | ip: {addr[0]}')
+            logging.info(f'action: receive_message | result: success | client_id: {client_id}')
 
-            all_batches = self.protocol.recv_batches(client_sock, addr[0])
+            all_batches = self.protocol.recv_batches(client_sock, client_id)
             amount_of_bets = 0
 
             for bets in all_batches:
                 amount_of_bets += len(bets)
-                store_bets(bets)
+                with self._lock: 
+                    store_bets(bets)
 
-            logging.info(f"action: apuesta_recibida | result: success | cantidad: {amount_of_bets}") 
-
-            agency_id = all_batches[0][0].agency
+            logging.info(f"action: apuesta_recibida | result: success | cantidad: {amount_of_bets} | client_id: {client_id}") 
 
             self._barrier.wait() 
 
+            agency_id = all_batches[0][0].agency
             winners = self._winners.get(agency_id, [])
             self.protocol.send_winners(client_sock, winners, agency_id)
 
@@ -91,13 +91,14 @@ class Server:
         client_id = self.protocol.recv_client_id(c)
         logging.info(f'action: accept_connections | result: success | ip: {addr[0]} | client_id: {client_id}')
         
-        return c
+        return c, client_id
     
     def _run_draw(self):
         winners_by_agency = {}
         logging.info("action: sorteo | result: success")
-        
-        all_bets = load_bets()
+
+        with self._lock: 
+            all_bets = list(load_bets())
         for bet in all_bets:
             if has_won(bet):
                 agency_id = bet.agency
