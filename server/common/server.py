@@ -5,6 +5,7 @@ import signal
 import sys
 from .protocol import ServerProtocol
 from .utils import *
+import threading
 
 CLIENTS_TOTAL = int(os.environ.get("CLIENTS_TOTAL", "5"))
 
@@ -16,8 +17,11 @@ class Server:
         self._server_socket.listen(listen_backlog)
         self._running = True
         self.protocol = ServerProtocol()
-        self._notified_clients = 0
-        self._clients = {}
+        self._threads = [] 
+        self._lock = threading.Lock()
+        self._barrier = threading.Barrier(CLIENTS_TOTAL, action=self._run_draw)
+        self._winners = None
+
 
         signal.signal(signal.SIGINT, self._handle_shutdown)
         signal.signal(signal.SIGTERM, self._handle_shutdown)
@@ -36,7 +40,9 @@ class Server:
             except OSError:
                 if not self._running:
                     break
-            self.__handle_client_connection(client_sock)
+            client_thread = threading.Thread(target=self.__handle_client_connection, args=(client_sock,)) 
+            client_thread.start()                                                                 
+            self._threads.append(client_thread) 
 
     def __handle_client_connection(self, client_sock):
         """
@@ -59,11 +65,11 @@ class Server:
             logging.info(f"action: apuesta_recibida | result: success | cantidad: {amount_of_bets}") 
 
             agency_id = all_batches[0][0].agency
-            self._clients[agency_id] = client_sock
-            self._notified_clients += 1
-            
-            if self._notified_clients == CLIENTS_TOTAL:
-                self._run_draw()
+
+            self._barrier.wait() 
+
+            winners = self._winners.get(agency_id, [])
+            self.protocol.send_winners(client_sock, winners, agency_id)
 
         except ValueError as e:
             logging.error(f"action: apuesta_recibida | result: fail | cantidad: {amount_of_bets} | error: {e}")
@@ -92,20 +98,12 @@ class Server:
         logging.info("action: sorteo | result: success")
         
         all_bets = load_bets()
-
         for bet in all_bets:
             if has_won(bet):
                 agency_id = bet.agency
                 winners_by_agency.setdefault(agency_id, []).append(int(bet.document))
         
-
-        for agency_id, sock in self._clients.items():
-            winners = winners_by_agency.get(agency_id, [])
-            self.protocol.send_winners(sock, winners, agency_id)
-            # sock.close()
-
-        self._clients.clear()
-        # logging.info("action: run_draw | result: success")
+        self._winners = winners_by_agency
     
     def _handle_shutdown(self, signum, frame):
         self._server_socket.close()
