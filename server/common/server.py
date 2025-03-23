@@ -75,6 +75,16 @@ class Server:
             logging.error(f"action: apuesta_recibida | result: fail | cantidad: {amount_of_bets} | error: {e}")
         except OSError as e:
             logging.error(f"action: apuesta_recibida | result: fail | cantidad: {amount_of_bets} | error: {e}")
+        except RuntimeError as e:
+            logging.error("action: receive_message | result: fail | error: %s", format(e))
+
+        finally:
+            try:
+                client_sock.close()
+                logging.info(f"Client socket closed for client_id: {client_id}")
+            except Exception as e:
+                logging.error(f"Error closing client socket for client_id: {client_id}: {e}")
+
 
     def __accept_new_connection(self):
         """
@@ -105,10 +115,19 @@ class Server:
                 winners_by_agency.setdefault(agency_id, []).append(int(bet.document))
         
         self._winners = winners_by_agency
+
+    def _join_client_threads(self):
+        for thread in self._threads.copy():
+            thread.join()
+            self._threads.remove(thread)
+
+
     
     def _handle_shutdown(self, signum, frame):
+        logging.info("action: shutdown_server | result: shutting down")
         self._server_socket.close()
         self._running = False
-        logging.info("action: shutdown_server | result: success")
-        sys.exit(0)
 
+        self._join_client_threads()
+        logging.info("action: shutdown_server | result: all client threads joined")
+        sys.exit(0)
