@@ -2,6 +2,7 @@ import sys
 
 def generate_clients(filename, num_clients):
     with open(filename, 'a') as f:
+        for i in range(1, int(num_clients) + 1):
             f.write(f"  client{i}:\n")
             f.write(f"    container_name: client{i}\n")
             f.write(f"    image: client:latest\n")
