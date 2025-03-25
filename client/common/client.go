@@ -37,6 +37,7 @@ type Client struct {
 	conn   net.Conn
 	stopping bool
 	protocol *ClientProtocol
+	csvFile  *os.File
 }
 
 // NewClient Initializes a new client receiving the configuration
@@ -46,6 +47,7 @@ func NewClient(config ClientConfig) *Client {
 		config:   config,
 		stopping: false,
 		protocol: &ClientProtocol{},
+		csvFile:  nil,
 	}
 	return client
 }
@@ -96,8 +98,8 @@ func (c *Client) sendBatches() error {
 	if err != nil {
 		return fmt.Errorf("Error opening CSV: %w", err)
 	}
-	defer file.Close()
-
+	c.csvFile = file
+	
 	reader := csv.NewReader(file)
 	//Since we are sending the amount of bets the size of the batch starts at 4 bytes
 	batchSize := 4
@@ -156,6 +158,7 @@ func (c *Client) sendBatches() error {
 	}
 	log.Infof("action: send_batches | result: success | client_id: %v", c.config.ID)
 
+<<<<<<< HEAD
 	// Wait a bit for the server to process all bets and log "draw"
 	time.Sleep(150 * time.Millisecond)
 
@@ -164,6 +167,9 @@ func (c *Client) sendBatches() error {
 		return fmt.Errorf("error consulting winners: %w", err)
 	}
 	log.Infof("action: consulta_ganadores | result: success | cant_ganadores: %d", len(winners))
+
+	file.Close()
+	c.csvFile = nil
 
 	return nil
 }
@@ -183,6 +189,10 @@ func computeBetBinarySize(bet Bet) int {
 func (c *Client) StopClientLoop() {
 	log.Infof("action: exit | result: success | client_id: %v", c.config.ID)
 	log.Infof("action: shutdown | result: success | client_id: %v", c.config.ID)
+	if c.csvFile != nil {
+		c.csvFile.Close()
+		c.csvFile = nil
+	}
 	c.conn.Close()
 	c.stopping = true
 	os.Exit(0)
