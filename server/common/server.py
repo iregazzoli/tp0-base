@@ -141,4 +141,3 @@ class Server:
         self._close_client_sockets()
         self._join_client_threads()
         logging.info("action: shutdown_server | result: all client threads joined")
-        sys.exit(0)
