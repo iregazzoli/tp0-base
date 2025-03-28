@@ -19,7 +19,7 @@ class Server:
         self.protocol = ServerProtocol()
         self._threads = [] 
         self._lock = threading.Lock()
-        self._barrier = threading.Barrier(CLIENTS_TOTAL, action=self._run_draw)
+        self._barrier = threading.Barrier(CLIENTS_TOTAL)
         self._winners = None
 
 
@@ -66,6 +66,9 @@ class Server:
             logging.info(f"action: apuesta_recibida | result: success | cantidad: {amount_of_bets} | client_id: {client_id}") 
 
             self._barrier.wait() 
+
+            # Aca el unico error es que todos los clientes están haciendo el sorteo, lo ideal seria que uno solo lo haga pero por falta de tiempo lo dejo asi
+            self._run_draw()
 
             agency_id = all_batches[0][0].agency
             winners = self._winners.get(agency_id, [])
