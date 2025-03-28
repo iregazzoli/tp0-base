@@ -21,6 +21,7 @@ class Server:
         self._lock = threading.Lock()
         self._barrier = threading.Barrier(CLIENTS_TOTAL)
         self._winners = None
+        self._client_sockets = []
 
 
         signal.signal(signal.SIGINT, self._handle_shutdown)
@@ -100,7 +101,7 @@ class Server:
         logging.info('action: accept_connections | result: in_progress')
         c, addr = self._server_socket.accept()
         # logging.info(f'action: accept_connections | result: success | ip: {addr[0]}')
-
+        self._client_sockets.append(c)
         client_id = self.protocol.recv_client_id(c)
         logging.info(f'action: accept_connections | result: success | ip: {addr[0]} | client_id: {client_id}')
         
@@ -124,13 +125,20 @@ class Server:
             thread.join()
             self._threads.remove(thread)
 
+    def _close_client_sockets(self):
+        for sock in self._client_sockets.copy():
+            try:
+                sock.close()
+                logging.info("Closed client socket %s", sock)
+            except Exception as e:
+                logging.error("Error closing client socket: %s", e)
+            self._client_sockets.remove(sock)
 
-    
     def _handle_shutdown(self, signum, frame):
         logging.info("action: shutdown_server | result: shutting down")
         self._server_socket.close()
         self._running = False
-
+        self._close_client_sockets()
         self._join_client_threads()
         logging.info("action: shutdown_server | result: all client threads joined")
         sys.exit(0)
