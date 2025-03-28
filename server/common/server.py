@@ -139,5 +139,10 @@ class Server:
         self._server_socket.close()
         self._running = False
         self._close_client_sockets()
+        #Abort barrier to avoid clients stuck in it when reciving a Sigterm
+        try:
+            self._barrier.abort()
+        except Exception as e:
+            logging.error("Error aborting barrier: %s", e)
         self._join_client_threads()
         logging.info("action: shutdown_server | result: all client threads joined")
